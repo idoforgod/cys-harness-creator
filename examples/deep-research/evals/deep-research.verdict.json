@@ -1,0 +1,32 @@
+{
+  "conditions": {
+    "C2": {
+      "median": 0.8333,
+      "variance": 0.0,
+      "n": 1,
+      "runs": [
+        0.8333333333333334
+      ]
+    },
+    "C3": {
+      "median": 1.0,
+      "variance": 0.0,
+      "n": 1,
+      "runs": [
+        1.0
+      ]
+    }
+  },
+  "delta_pp": -16.67,
+  "margin_pp": 15,
+  "verdict": "BASELINE-WINS",
+  "verdict_basis": "median(C2) - median(C3) vs +/-HEAD_TO_HEAD_WIN_MARGIN_PP",
+  "provenance": {
+    "schema_version": "0.1",
+    "model_id": "opus-4.8",
+    "harness_version": null,
+    "git_sha": "ac4dd9b",
+    "n_runs": 1
+  },
+  "note": "INCONCLUSIVE => margin not cleared either way; high variance => increase n. Report domains where CYS does NOT win honestly."
+}
