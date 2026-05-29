@@ -1,0 +1,5 @@
+{
+  "title": "연구 보고서 합성 불가: 검증된 findings 부재",
+  "markdown": "## 요약\n\n이 보고서는 합성 단계(stage 4)에 도달했으나, 유효한 입력이 제공되지 않아 사실 기반 보고서를 생성할 수 없었다.\n\n## 한계 (Limitations)\n\n- 합성 단계에 전달된 입력은 비어 있었다: `claims`와 `sources` 모두 0건.\n- 기대된 입력 파일 `_workspace/03_verify/findings.json` 이 존재하지 않았다.\n- 합성 단계는 새 사실을 추가하거나 웹 검색을 수행할 수 없으므로(입력 claim·source만 사용), 인용 가능한 사실 주장이 하나도 없는 상태에서는 보고서 본문을 작성할 수 없다.\n\n## 다음 단계 (Recommended Action)\n\n- 상류 단계(gather → verify)를 재실행하여 `_workspace/03_verify/findings.json` 을 생성해야 한다.\n- 검증된 findings가 채워진 뒤 합성 단계를 다시 호출하면 인용된 보고서를 산출할 수 있다.\n- 본 실패는 on_exhaust=escalate 정책에 따라 사람 검토로 에스컬레이션되어야 한다.\n\n## 인용 (Citations)\n\n인용 가능한 검증된 source가 없으므로 인용 목록은 비어 있다.",
+  "citations": []
+}

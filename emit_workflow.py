@@ -37,6 +37,21 @@ def _load(path):
         return json.load(f)
 
 
+def _agent_body(harness_dir, agent_name):
+    """Read .claude/agents/<agent>.md, strip YAML frontmatter, return the role body (trimmed).
+    Inlined into emitted prompts so the role survives without a resolvable custom agentType."""
+    p = os.path.join(harness_dir, ".claude", "agents", agent_name + ".md")
+    try:
+        text = open(p, encoding="utf-8").read()
+    except OSError:
+        return ""
+    if text.startswith("---"):
+        end = text.find("\n---", 3)
+        if end != -1:
+            text = text[end + 4:]
+    return text.strip()
+
+
 def _check_refs(graph, harness_dir):
     """Every node.agent -> .claude/agents/<agent>.md ; every output_schema -> file (harness-root-relative)."""
     node_ids = {n["id"] for n in graph["nodes"]}
@@ -107,7 +122,11 @@ def _meta(graph, order):
 
 def _node_fn(node):
     """Emit one `async function node_<id>(input)` applying its decision_mechanism."""
-    nid, agent, model = node["id"], node["agent"], node["model"]
+    nid, model = node["id"], node["model"]
+    # The Workflow runtime resolves ONLY built-in agentTypes (general-purpose/Explore/Plan/...),
+    # NOT a harness's custom .claude/agents. So we use general-purpose and INLINE the agent's
+    # role into the prompt (ROLES, see _prompts). general-purpose has full tools (WebSearch etc.).
+    agent = "general-purpose"
     mech = node["decision_mechanism"]
     mp = node.get("mechanism_params", {})
     schema = ("S." + _schema_key(node)) if node.get("output_schema") else "undefined"
@@ -164,29 +183,44 @@ def _node_fn(node):
     raise ValueError("unknown decision_mechanism: %s" % mech)
 
 
-def _prompts(graph):
-    """Generic, domain-agnostic prompt builders. Role/behavior comes from agentType."""
+def _prompts(graph, harness_dir):
+    """Prompt builders with the agent's ROLE INLINED (read from .claude/agents/<agent>.md at
+    emit time). Because the Workflow runtime can't resolve custom agentTypes, the role can't
+    ride along via agentType — so it is embedded in the prompt here, making workflow.js
+    self-contained and runnable with the built-in general-purpose agent."""
+    roles = {n["id"]: _agent_body(harness_dir, n["agent"]) for n in graph["nodes"]}
     out = ["  const NIN = %s;" % json.dumps({n["id"]: n.get("inputs", []) for n in graph["nodes"]})]
+    out.append("  const ROLES = %s;" % json.dumps(roles))
+    # Mode-A data flows by RETURN VALUE (pipeline passes prev->next), NOT by _workspace files.
+    # Agent role bodies may describe file I/O; this FLOW directive overrides that so the agent
+    # uses the inline INPUT and returns JSON (which is wired to the next node automatically).
+    out.append('  const FLOW = "\\n\\n[DATA FLOW] The INPUT shown above IS your complete input — '
+               'use it directly; do NOT read/write _workspace files for data (any file paths in your '
+               'role are illustrative). Return ONLY JSON per the required schema; your return value is '
+               'passed to the next node automatically.\\n'
+               '[TOOLS] Tools may be DEFERRED in this runtime: if you need WebSearch/WebFetch (or any '
+               'tool not already available), LOAD IT FIRST via ToolSearch (e.g. query \\"select:WebSearch,WebFetch\\"), '
+               'THEN use it. Actually DO the work (real searches/fetches) — never substitute a file Read for real tool use, '
+               'and never return empty results without having genuinely tried your tools.";')
     out.append("  const P = {")
     for n in graph["nodes"]:
         nid, mech = n["id"], n["decision_mechanism"]
-        base = ('    %s: (input) => "INPUT:\\n" + JSON.stringify(input) + '
-                '"\\n\\nFollow your agent definition. Return ONLY JSON matching the required schema.",' % nid)
+        R = '"ROLE (follow strictly):\\n" + ROLES["%s"] + "\\n\\n"' % nid
         if mech == "single":
-            out.append(base)
+            out.append('    %s: (input) => %s + "INPUT:\\n" + JSON.stringify(input) + FLOW,' % (nid, R))
         elif mech == "majority-vote":
-            out.append('    %s: (input, k) => "INPUT (independent ballot #" + k + "):\\n" + JSON.stringify(input) + '
-                       '"\\n\\nDecide independently per your agent definition. Return ONLY JSON per schema.",' % nid)
+            out.append('    %s: (input, k) => %s + "INPUT (independent ballot #" + k + "):\\n" + JSON.stringify(input) + '
+                       '"\\n\\nDecide independently." + FLOW,' % (nid, R))
         elif mech == "debate-with-judge":
-            out.append('    %s_debater: (input, t, r, k) => "INPUT:\\n" + JSON.stringify(input) + '
-                       '"\\nTRANSCRIPT:\\n" + JSON.stringify(t) + "\\nRound " + r + ", side " + k + ". Argue per your agent definition.",' % nid)
-            out.append('    %s_judge: (input, t) => "INPUT:\\n" + JSON.stringify(input) + '
-                       '"\\nDEBATE:\\n" + JSON.stringify(t) + "\\nJudge and decide. Return ONLY JSON per schema.",' % nid)
+            out.append('    %s_debater: (input, t, r, k) => %s + "INPUT:\\n" + JSON.stringify(input) + '
+                       '"\\nTRANSCRIPT:\\n" + JSON.stringify(t) + "\\nRound " + r + ", side " + k + ". Argue your position." + FLOW,' % (nid, R))
+            out.append('    %s_judge: (input, t) => %s + "INPUT:\\n" + JSON.stringify(input) + '
+                       '"\\nDEBATE:\\n" + JSON.stringify(t) + "\\nJudge and decide." + FLOW,' % (nid, R))
         elif mech == "reflect-then-revise":
-            out.append('    %s_critic: (draft, r) => "DRAFT (round " + r + "):\\n" + JSON.stringify(draft) + '
-                       '"\\n\\nAdversarially critique per your agent definition. If acceptable set approved=true. Return ONLY critique JSON.",' % nid)
-            out.append('    %s_reviser: (draft, crit, r) => "DRAFT:\\n" + JSON.stringify(draft) + '
-                       '"\\nCRITIQUE:\\n" + JSON.stringify(crit) + "\\nRevise to fix every issue. Return ONLY corrected JSON per schema.",' % nid)
+            out.append('    %s_critic: (draft, r) => %s + "DRAFT (round " + r + "):\\n" + JSON.stringify(draft) + '
+                       '"\\n\\nAdversarially critique. If acceptable set approved=true. Return ONLY critique JSON." + FLOW,' % (nid, R))
+            out.append('    %s_reviser: (draft, crit, r) => %s + "DRAFT:\\n" + JSON.stringify(draft) + '
+                       '"\\nCRITIQUE:\\n" + JSON.stringify(crit) + "\\nRevise to fix every issue." + FLOW,' % (nid, R))
     out.append("  };")
     return "\n".join(out) + "\n"
 
@@ -217,7 +251,8 @@ def _topology(graph, order):
     top = graph["topology"]
     if top == "pipeline":
         stages = ",\n".join("    (prev) => node_%s(prev)" % nid for nid in order)
-        return ('  const seed = (args && args.query) ? args.query : "(input provided in _workspace/00_input/)";\n'
+        return ('  const ARGS = (typeof args === "string") ? (()=>{try{return JSON.parse(args||"{}")}catch(e){return {}}})() : (args||{});\n'
+                '  const seed = ARGS.query ? ARGS.query : "(ERROR: no query — pass Workflow args:{query}); do NOT read _workspace files)";\n'
                 '  const [out] = await pipeline(\n    [seed],\n%s\n  );\n'
                 '  log("done: " + (out ? "ok" : "no output (budget guard or empty)"));\n'
                 '  return out;\n' % stages)
@@ -227,7 +262,8 @@ def _topology(graph, order):
         sources = [nid for nid in order if nid not in targets] or order
         sinks = [nid for nid in order if nid not in {e["from"] for e in graph["edges"]}]
         thunks = ",\n".join("    () => node_%s(args)" % nid for nid in sources)
-        body = ('  const seed = (args && args.query) ? args.query : args;\n'
+        body = ('  const ARGS = (typeof args === "string") ? (()=>{try{return JSON.parse(args||"{}")}catch(e){return {}}})() : (args||{});\n'
+                '  const seed = (ARGS.query !== undefined) ? ARGS.query : ARGS;\n'
                 '  const fanned = (await parallel([\n%s\n  ])).filter(Boolean);\n' % thunks)
         if len(sinks) == 1 and sinks[0] not in sources:
             body += '  const out = await node_%s(fanned);\n  return out;\n' % sinks[0]
@@ -238,7 +274,8 @@ def _topology(graph, order):
     if top == "producer-reviewer":
         prod, rev = order[0], (order[1] if len(order) > 1 else order[0])
         rounds = max((by_id[n].get("max_rounds", 2) for n in (prod, rev)), default=2)
-        return ('  const seed = (args && args.query) ? args.query : args;\n'
+        return ('  const ARGS = (typeof args === "string") ? (()=>{try{return JSON.parse(args||"{}")}catch(e){return {}}})() : (args||{});\n'
+                '  const seed = (ARGS.query !== undefined) ? ARGS.query : ARGS;\n'
                 '  let draft = await node_%s(seed);\n'
                 '  for (let r = 0; r < %d; r++) {\n'
                 '    const review = await node_%s(draft);\n'
@@ -265,7 +302,7 @@ def emit(graph, harness_dir):
     body = []
     body.append(_inline_schemas(graph, harness_dir).rstrip("\n"))
     body.append(_helpers().rstrip("\n"))
-    body.append(_prompts(graph).rstrip("\n"))
+    body.append(_prompts(graph, harness_dir).rstrip("\n"))
     for nid in order:
         body.append(_node_fn(next(n for n in graph["nodes"] if n["id"] == nid)).rstrip("\n"))
     body.append(_topology(graph, order).rstrip("\n"))
