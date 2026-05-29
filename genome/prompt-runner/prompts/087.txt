@@ -1,0 +1,24 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 반영은 설계 결함 탐지의 치명·위험 확정 항목으로 한정.
+② SOT + RLM 불변 — 보존 체크.
+③ 승인 후 구현 — 산출물은 /prompt/workflow-coding.md 갱신본 하나. 실제 구현 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: Infrastructure Build 설계 결함 탐지 보고서 완료.
+이번 단계: 치명·위험 결함의 권장 수정을 /prompt/workflow-coding.md 에 반영.
+[/SESSION HEADER]
+
+[작업 지시]
+1. 치명·위험 결함의 권장 수정을 식별.
+2. /prompt/workflow-coding.md에 반영. SOT/RLM/철학 보존.
+
+[반영 품질 검증]
+1층위: 반영되지 않은 치명·위험 수정만 나열.
+2층위: 반영 후 일관성·품질 기준이 흔들리는 지점.
+3층위 (역방향): 반영이 놓친 것.
+
+[출력]
+A. diff 요약. B. 체크리스트. C. SOT/RLM 재확인.

@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1",
+  "harness_name": "deep-research",
+  "_note": "M0 head-to-head: single discriminating-assertion scorecard, run ONCE. C2=CYS harness vs C3=no-harness single agent. C1=original harness + blind/n-run/2-grader deferred to M1. Win: C2 pass_rate >= C3 + HEAD_TO_HEAD_WIN_MARGIN_PP (15pp). Report domains where CYS does NOT win honestly.",
+  "query": "What are the documented security and reliability limitations of using LLM-orchestrated multi-agent 'teams' (vs deterministic sub-agent pipelines) as of 2026? Cross-validate across primary framework docs and report with citations.",
+  "assertions": [
+    { "id": "A1", "text": "Every factual sentence carries an inline [source_id] citation", "polarity": "must" },
+    { "id": "A2", "text": "At least 3 independent primary sources are cited (not all from one vendor)", "polarity": "must" },
+    { "id": "A3", "text": "Every cited source_id resolves to a real, reachable URL in the citations list", "polarity": "must" },
+    { "id": "A4", "text": "At least one claim that failed verification was removed or marked unverified (not silently kept)", "polarity": "must" },
+    { "id": "A5", "text": "The report distinguishes 'team mode' limitations from 'sub-agent pipeline' limitations rather than conflating them", "polarity": "must" },
+    { "id": "A6", "text": "No fabricated statistics: any number is attributed to a dated source", "polarity": "must-not-violate" },
+    { "id": "A7", "text": "Conflicting sources are presented with both positions, not silently resolved to one", "polarity": "should" },
+    { "id": "A8", "text": "The report states its own scope/recency limits (what it could NOT verify)", "polarity": "should" }
+  ],
+  "conditions": ["C2", "C3"],
+  "win_condition": "C2_pass_rate >= C3_pass_rate + 0.15",
+  "report_skeleton": {
+    "harness_version": "0.1.0",
+    "run_at": null,
+    "C2": { "pass_rate": null, "passed": [], "failed": [] },
+    "C3": { "pass_rate": null, "passed": [], "failed": [] },
+    "delta_pp": null,
+    "verdict": null
+  }
+}

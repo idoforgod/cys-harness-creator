@@ -1,0 +1,35 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 속도·토큰 무시. 품질·질적 수준 절대 기준.
+
+② SOT + RLM 불변 — 철학·목적·핵심 보존. SOT 무결성. RLM 패턴 유지.
+
+③ 언어 원칙 — 내부 로직·지침(agents/skills/hooks/verification/subagent·skill 세부 지침)은
+   **영어**로 작성. 사용자 대면 출력(보고·알림·질문)은 한국어.
+   영어 프롬프팅의 이점: 토큰 효율 / 정확도 / 해석 일관성.
+
+④ 승인 후 구현 — 이 턴의 산출물은 "성찰 보고서"뿐.
+   코드베이스·문서 수정은 다음 단계 별도 지시로.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: 시니어 관점 성찰·필수 조치 반영 완료.
+이번 단계: 코드베이스 전수조사 — 언어 원칙 준수 여부 재점검.
+[/SESSION HEADER]
+
+[작업 지시]
+1. 코드베이스 전 파일에서 Task Management System / agent-teams / Agent Swarm /
+   orchestrator agent / sub agents / skills / hooks / commands / task verification 및
+   subagent·skill 세부 지침이 영어로 작성되었는지 확인.
+2. 사용자 대면 출력(보고·알림·질문)이 한국어인지 확인.
+3. 혼용·위반 지점 나열.
+
+[성찰 품질 검증 — 3층위]
+1층위 (사실 확인): 파일별 언어 준수 매핑. 위반만 나열.
+2층위 (구조 분석): 위반이 실제 실행 품질에 어떤 영향인가.
+3층위 (철학 정합성): SOT/RLM/철학 보존과 충돌 없는가.
+
+[출력 형식]
+A. 파일별 언어 준수 표. B. 위반 목록 + 심각도. C. 수정 권고. 

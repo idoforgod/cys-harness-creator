@@ -1,0 +1,35 @@
+# Sub-agent Categorization Rules (Phase 2 Design — Revision 3)
+#
+# Deterministic fork context decisions per sub-agent.
+# This is the canonical SOT for all fork decision validation.
+#
+# Three-tier categorization:
+#   - always_fork: Sub-agent requires isolated fork context (glossary, calibration state)
+#   - always_fresh: Sub-agent performs stateless verification (no fork context needed)
+#   - team_decision: Fork decision deferred to team (requires ADR before 2nd invocation)
+
+agents:
+  "@translator":
+    rule: always_fork
+    rationale: "Glossary persistence requires per-fork state isolation"
+    domain: "translation"
+    min_glossary_size: 10
+
+  "@reviewer":
+    rule: always_fork
+    rationale: "Independent L2 calibration requires isolated context for consistency"
+    domain: "quality_assurance"
+    max_review_conflicts: 3
+
+  "@fact-checker":
+    rule: always_fresh
+    rationale: "Stateless verification logic — fresh analysis on every invocation"
+    domain: "verification"
+    timeout_seconds: 30
+
+# Extension point for new agents
+# Before adding a new agent here:
+# 1. Create ADR in DECISION-LOG.md with explicit categorization decision
+# 2. Add entry below with rule + rationale
+# 3. Create agent spec in .claude/agents/@new-agent.md
+# 4. Run `claude --maintenance` to verify DC-7 sync (AGENTS.md ↔ categorization.yaml ↔ pre_subagent_invocation.py)

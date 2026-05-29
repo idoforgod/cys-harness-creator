@@ -1,0 +1,2 @@
+{"$id":"brief.json","title":"Brief","type":"object","additionalProperties":false,"required":["title","markdown","citations"],
+"properties":{"title":{"type":"string"},"markdown":{"type":"string"},"citations":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","url"],"properties":{"id":{"type":"string"},"url":{"type":"string"}}}}}}

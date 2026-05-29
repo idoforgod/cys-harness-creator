@@ -1,0 +1,24 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 반영은 성찰의 확정 권장 조치로 한정.
+② SOT + RLM 불변 — 보존 체크.
+③ 승인 후 구현 — 산출물은 /prompt/workflow-coding.md 갱신본 하나. 실제 코드 구현 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: 시니어 아키텍트 관점 Critical Reflection 보고서 완료.
+이번 단계: 권장 조치를 /prompt/workflow-coding.md 에 반영.
+[/SESSION HEADER]
+
+[작업 지시]
+1. 3원칙 관점 권장 조치(의도 파악·파급 분석·변경 설계)를 식별.
+2. /prompt/workflow-coding.md에 반영. SOT/RLM/철학 보존.
+
+[반영 품질 검증]
+1층위: 반영되지 않은 권장 조치만 나열.
+2층위: 반영 후 문서 일관성 흔들리는 지점.
+3층위 (역방향): 반영이 놓친 것.
+
+[출력]
+A. diff 요약. B. 체크리스트. C. SOT/RLM 재확인. 

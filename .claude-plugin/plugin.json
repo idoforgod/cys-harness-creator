@@ -1,0 +1,8 @@
+{
+  "name": "harness-creator",
+  "description": "CYS Harness Creator — 도메인 한 문장을 검증·비용통제·재개가능한 에이전트 하네스로 컴파일하는 실행 팩토리. graph.json→workflow.js(Mode A 결정론 런타임) + 17-check 빌드게이트 + AgenticWorkflow 게놈 전수. /harness-creator 로 호출.",
+  "version": "0.1.0",
+  "author": { "name": "cys" },
+  "license": "Apache-2.0",
+  "keywords": ["harness-creator","harness-factory","agent-team","meta-skill","deterministic-runtime","genome-inheritance","claude-code"]
+}

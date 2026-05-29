@@ -1,0 +1,25 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 반영은 적대적 성찰에서 확정된 "방어 불가 + 개선안"과 누락 감사 결과에 한한다.
+② 로컬 실행 불변 — 태그·전제 유지.
+③ 승인 후 최종 산출 — 산출물은 /prompt/workflow-idea/workflow-idea.md 수정본 하나.
+   workflow.md 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: workflow-idea.md 적대적 성찰 + 누락 감사 완료.
+이번 단계: 개선안·누락 항목을 /prompt/workflow-idea/workflow-idea.md 에 반영.
+[/SESSION HEADER]
+
+[작업 지시]
+1. "방어 불가 + 개선안" 및 누락 항목을 식별.
+2. workflow-idea.md에 반영. 제1 목적 연결·로컬 실행 태그·상충 블럭 유지.
+
+[반영 품질 검증]
+1층위: 반영되지 않은 항목만 나열.
+2층위: 반영 후 일관성이 흔들리는 지점.
+3층위 (역방향): 반영이 놓친 것.
+
+[출력]
+A. diff 요약. B. 체크리스트. C. 일관성 점검.

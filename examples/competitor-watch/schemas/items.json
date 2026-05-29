@@ -1,0 +1,3 @@
+{"$id":"items.json","title":"Items","type":"object","additionalProperties":false,"required":["items"],
+"properties":{"items":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["id","title","url","source"],
+"properties":{"id":{"type":"string"},"title":{"type":"string"},"url":{"type":"string"},"source":{"type":"string"}}}}}}

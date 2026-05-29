@@ -1,0 +1,39 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 속도·토큰 완전 무시. 품질·질적 수준이 절대 기준.
+   sub agent vs agent-teams 선택 기준은 '품질'. SOT는 실제로 작동해야 한다.
+
+② SOT + RLM 불변 — 철학·목적·핵심 보존. 단일 파일 SOT + 계층적 메모리 무결성.
+   RLM 패턴 절대 유지. 침범 가능성이 보이면 제안 전 보고.
+
+③ 영어 운용 + 한국어 번역 절대 원칙 — 실행 시 모든 과정·결과물 영어로.
+   각 단계마다 한국어 번역 서브에이전트가 원본 영어 + 한국어 번역 쌍 저장.
+   관련 Task Management / agent-teams / orchestrator / sub agents / skills /
+   hooks / commands / task verification 중 부재한 것은 지금 당장 제작하라.
+
+④ 승인 후 구현 — 이 턴의 산출물은 "성찰 + 설계 수정 제안"뿐. 실제 구현 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+
+→ 충돌 시 상위 기준 절대 우선. ②가 흔들리면 중단·보고.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: 시니어 아키텍트 관점 Critical Reflection 반영 완료.
+이번 단계: Infrastructure Build 성찰 — 품질 기준 + 영어/번역 절대 원칙 준수 확인 및 재점검.
+[/SESSION HEADER]
+
+[작업 지시 — 성찰]
+1. 현재 Infrastructure Build 설계가 다음 2대 절대 기준을 "충실하게" 반영했는지 재점검.
+   (1) 품질 최우선 + SOT 실제 작동 + sub agent vs agent-teams 선택 기준 = 품질.
+   (2) 영어 작동 + 한국어 번역 쌍 저장.
+2. 부족한 지점을 구체 증거와 함께 나열.
+3. 한국어 번역 담당 Task Management/agent-teams/orchestrator/subagents/skills/hooks/
+   commands/task verification 중 부재한 것이 있으면 "즉시 제작 제안"으로 권고.
+
+[성찰 품질 검증 — 3층위]
+1층위 (사실 확인): 2대 기준 ↔ 설계 매핑. 미반영만 나열.
+2층위 (구조 분석): 미반영 지점이 실제 실행에서 어떤 블로커인가.
+3층위 (철학 정합성): SOT/RLM/철학 보존 유지 여부. 증거 기반.
+
+[출력 형식]
+A. 2대 기준 준수 매핑. B. 부재한 번역 관련 구성요소 목록.
+C. 설계 수정 제안. 

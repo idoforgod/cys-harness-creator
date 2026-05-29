@@ -1,0 +1,992 @@
+[
+  {
+    "file": "001.txt",
+    "index": 1,
+    "is_clear": false,
+    "char_count": 1705,
+    "byte_count": 3318,
+    "md5": "24c985883a9225377cbf88f325aa7b22",
+    "sha256": "ab72a5701e281fcf4b28b507f84a05c37f472448082e66f452723a6622168d4b"
+  },
+  {
+    "file": "002.txt",
+    "index": 2,
+    "is_clear": false,
+    "char_count": 1672,
+    "byte_count": 3296,
+    "md5": "118ae30090447de117009685caf6721c",
+    "sha256": "1fa342762371b77e30b29c6470232ccb4a75372353b677318b4197d0d30a18dd"
+  },
+  {
+    "file": "003.txt",
+    "index": 3,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "004.txt",
+    "index": 4,
+    "is_clear": false,
+    "char_count": 2447,
+    "byte_count": 4656,
+    "md5": "6a0a6377cecd316894fbeafd7ef9aaaa",
+    "sha256": "2c3990c12bfe351dc20531a1f5396ad17aff67adefcc38423657f75d6e6433c9"
+  },
+  {
+    "file": "005.txt",
+    "index": 5,
+    "is_clear": false,
+    "char_count": 1942,
+    "byte_count": 3766,
+    "md5": "01b6e91e430fd88038d354368b00953a",
+    "sha256": "fa46282076439daf83c881938f428053d57ed4a584e4c65a91d5a55b9e8c0606"
+  },
+  {
+    "file": "006.txt",
+    "index": 6,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "007.txt",
+    "index": 7,
+    "is_clear": false,
+    "char_count": 2278,
+    "byte_count": 4241,
+    "md5": "d25ef5a63f6c7ffc009ca486f4f9a0db",
+    "sha256": "d07466fb4bc998b3bec26b88365d25563fc912bf9cc39fd61ccf386ac23ef0d3"
+  },
+  {
+    "file": "008.txt",
+    "index": 8,
+    "is_clear": false,
+    "char_count": 1591,
+    "byte_count": 3032,
+    "md5": "6e79792d8123b6142c115fd332047fee",
+    "sha256": "ccbc06ba773cf57158a00da3f4becaa40958dcb72b6a064a06dd997503ed2395"
+  },
+  {
+    "file": "009.txt",
+    "index": 9,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "010.txt",
+    "index": 10,
+    "is_clear": false,
+    "char_count": 2333,
+    "byte_count": 4182,
+    "md5": "dc458e96fc27cbc8e231f734b5dadcd1",
+    "sha256": "22054c5c80e341bbbcd0b1a4a960ea877a43da2275d3dd0389cd7721298061e7"
+  },
+  {
+    "file": "011.txt",
+    "index": 11,
+    "is_clear": false,
+    "char_count": 1511,
+    "byte_count": 2813,
+    "md5": "7c7544df05dc161235ad7c4631562053",
+    "sha256": "25b6cdec9ba793194f791e3d763d4a53b5d6afea79925d5255e62251a0e57aa1"
+  },
+  {
+    "file": "012.txt",
+    "index": 12,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "013.txt",
+    "index": 13,
+    "is_clear": false,
+    "char_count": 1755,
+    "byte_count": 3221,
+    "md5": "b34361eb6a786828568aff084f4f03a7",
+    "sha256": "b61ec74f56a22c7c3d28447ca12dfdc3521b396687c2ff4b2881c83a1ac25686"
+  },
+  {
+    "file": "014.txt",
+    "index": 14,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "015.txt",
+    "index": 15,
+    "is_clear": false,
+    "char_count": 1399,
+    "byte_count": 2559,
+    "md5": "d50597133eb7627880f6354d5da684fd",
+    "sha256": "4d314c209c4163c7fa298e0fb23d5961fdd01053b0bc3204544e53e87b8e1455"
+  },
+  {
+    "file": "016.txt",
+    "index": 16,
+    "is_clear": false,
+    "char_count": 1149,
+    "byte_count": 2225,
+    "md5": "0e196b5a46b3060d83021f0c07535e49",
+    "sha256": "af4f4b3547a84a1ba540bfccda1d7d3015a3297c84b938e7eaea557df0319926"
+  },
+  {
+    "file": "017.txt",
+    "index": 17,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "018.txt",
+    "index": 18,
+    "is_clear": false,
+    "char_count": 1692,
+    "byte_count": 3260,
+    "md5": "53bacb0b7c4e082486176ddf2dbd163e",
+    "sha256": "91c816eca33889303a1c40c2393710c16623fb2c1a870819d727e75ff0f3ec22"
+  },
+  {
+    "file": "019.txt",
+    "index": 19,
+    "is_clear": false,
+    "char_count": 782,
+    "byte_count": 1505,
+    "md5": "a8dcba87dba691604d461a4a28a036fd",
+    "sha256": "1304ca8deb73e1b9a6286cb8f652640a268711d3c97ac05bf3fb04b924485702"
+  },
+  {
+    "file": "020.txt",
+    "index": 20,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "021.txt",
+    "index": 21,
+    "is_clear": false,
+    "char_count": 1400,
+    "byte_count": 2760,
+    "md5": "ab1a51cf7e03961e359d5fc87d70c861",
+    "sha256": "288df0af2fa343fea89fe64a2899f5ee37f5833291efcaf90cb7faa9e7025feb"
+  },
+  {
+    "file": "022.txt",
+    "index": 22,
+    "is_clear": false,
+    "char_count": 721,
+    "byte_count": 1400,
+    "md5": "d032dac6b73e7231398dbcf59898babf",
+    "sha256": "5049472052c874d5adae2f9b307711fd673f541d12ec924743120832882b3c78"
+  },
+  {
+    "file": "023.txt",
+    "index": 23,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "024.txt",
+    "index": 24,
+    "is_clear": false,
+    "char_count": 1358,
+    "byte_count": 2791,
+    "md5": "5a6e16c9e80d35cf5f4b76931beeb333",
+    "sha256": "3880eefe43eb3950380df25f4933b3fe6f793cf34e0287cc1441ca5e23a51fa2"
+  },
+  {
+    "file": "025.txt",
+    "index": 25,
+    "is_clear": false,
+    "char_count": 678,
+    "byte_count": 1300,
+    "md5": "8242ce467bce2daa93020dfe4c02fd37",
+    "sha256": "73df30a2f65b6e265c76781e68dfeee043239b879bd515f694a8d9d322092f68"
+  },
+  {
+    "file": "026.txt",
+    "index": 26,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "027.txt",
+    "index": 27,
+    "is_clear": false,
+    "char_count": 874,
+    "byte_count": 1738,
+    "md5": "532d1be2ea4c6005174f0f82faf062b5",
+    "sha256": "5c034d91f8a6bf75ed61bde052aff0be85fd4b551b63f165dc0a940db7185c05"
+  },
+  {
+    "file": "028.txt",
+    "index": 28,
+    "is_clear": false,
+    "char_count": 691,
+    "byte_count": 1262,
+    "md5": "4e8451a41355e496d7441188646200a6",
+    "sha256": "9e2f545fd752aced6504b4723dfc604ac1d51ea3d2f37d972b8e50882cbe6311"
+  },
+  {
+    "file": "029.txt",
+    "index": 29,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "030.txt",
+    "index": 30,
+    "is_clear": false,
+    "char_count": 1724,
+    "byte_count": 3231,
+    "md5": "b1d1d5be6d18f0f3a6de99dfbaa26e33",
+    "sha256": "aa9cd2a7e4e56c06bbafa6ecf52912d3ab5bee9b9fa821ae3736609475748539"
+  },
+  {
+    "file": "031.txt",
+    "index": 31,
+    "is_clear": false,
+    "char_count": 1034,
+    "byte_count": 1986,
+    "md5": "5c9ceef8de1a39f54b988907957b622c",
+    "sha256": "860f931ed1b5b0199608c1545d83131dab9e73d8438008701da27f8cd8fdc4c2"
+  },
+  {
+    "file": "032.txt",
+    "index": 32,
+    "is_clear": false,
+    "char_count": 682,
+    "byte_count": 1313,
+    "md5": "57b2dacf0da2e50469e64572d16d6455",
+    "sha256": "40ce4fe12f288b08a10cd711dd58b77af5fa37bcb735ea2ce8f5016a55c3119b"
+  },
+  {
+    "file": "033.txt",
+    "index": 33,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "034.txt",
+    "index": 34,
+    "is_clear": false,
+    "char_count": 1043,
+    "byte_count": 1994,
+    "md5": "9f7bbc4d52d33e023ae3fb006052d8fb",
+    "sha256": "8320ac50d4ee4812214069f4953a1f031f011db36abdcead5ad001a5e284e799"
+  },
+  {
+    "file": "035.txt",
+    "index": 35,
+    "is_clear": false,
+    "char_count": 607,
+    "byte_count": 1152,
+    "md5": "526eb641c7f7f9e089bc4f24ae909b0f",
+    "sha256": "ecbef2327b1c8699394e0ea24e15d273a1e2fcf1211f50600dd331b7e29fe465"
+  },
+  {
+    "file": "036.txt",
+    "index": 36,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "037.txt",
+    "index": 37,
+    "is_clear": false,
+    "char_count": 1393,
+    "byte_count": 2653,
+    "md5": "49b04a7682b83551cdca3ac57d28a0b4",
+    "sha256": "048c181bfadabe7aabb9443dab1855d49ede93fabb52a510bc39c107265db1d5"
+  },
+  {
+    "file": "038.txt",
+    "index": 38,
+    "is_clear": false,
+    "char_count": 650,
+    "byte_count": 1241,
+    "md5": "9e7dec3663baf52c0d41960121d27894",
+    "sha256": "5a670384e7976d1dc09feac7abcf596d02fbf14116c8fafc5f78b0e26ca66bce"
+  },
+  {
+    "file": "039.txt",
+    "index": 39,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "040.txt",
+    "index": 40,
+    "is_clear": false,
+    "char_count": 1112,
+    "byte_count": 2190,
+    "md5": "6e429537dc0df4f0d84e0d6d6649a835",
+    "sha256": "d0a4f445f3bb4db59a4015e497dc275176e6e39d530ea3dc367a51279c6ad533"
+  },
+  {
+    "file": "041.txt",
+    "index": 41,
+    "is_clear": false,
+    "char_count": 589,
+    "byte_count": 1088,
+    "md5": "8ef7555c60189ef5dd0f66fcb8cf8433",
+    "sha256": "c4434996cd39c04a949a29b06c815c1e82105ffb2f7977f74d9efcd8980b9eb2"
+  },
+  {
+    "file": "042.txt",
+    "index": 42,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "043.txt",
+    "index": 43,
+    "is_clear": false,
+    "char_count": 1406,
+    "byte_count": 2771,
+    "md5": "b1318af6378456a11423e10278616b84",
+    "sha256": "8ae38a03b06345bd2563754c24f2548f8eaa7680a6e5a78fe297d6ea203c43a3"
+  },
+  {
+    "file": "044.txt",
+    "index": 44,
+    "is_clear": false,
+    "char_count": 782,
+    "byte_count": 1450,
+    "md5": "671f28f7f4be6bf21907ee4703be0a6f",
+    "sha256": "64faf7b48dac402ae2411107a0d7de9f590398a73772bf02e8cbaebcf6bfd807"
+  },
+  {
+    "file": "045.txt",
+    "index": 45,
+    "is_clear": false,
+    "char_count": 978,
+    "byte_count": 1816,
+    "md5": "7d0853a7ef941b903b3ce038a7a2f885",
+    "sha256": "6dc22ddf71d9f2fe151909350b13946b47970da8cf1cafebe19e047111bb483d"
+  },
+  {
+    "file": "046.txt",
+    "index": 46,
+    "is_clear": false,
+    "char_count": 609,
+    "byte_count": 1071,
+    "md5": "e839a44266de0c48a88934ef2e16a0c9",
+    "sha256": "9e0c127a1779845ad25459bd17301fba8dc2375e7219c51180b58f00cba67dec"
+  },
+  {
+    "file": "047.txt",
+    "index": 47,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "048.txt",
+    "index": 48,
+    "is_clear": false,
+    "char_count": 952,
+    "byte_count": 1808,
+    "md5": "81c4c543fbc67b6f7e8c030850ce552e",
+    "sha256": "f77f2fec2f154bcff662290c0571cff80e9b641a254a0d134edf0427c8fdc1b8"
+  },
+  {
+    "file": "049.txt",
+    "index": 49,
+    "is_clear": false,
+    "char_count": 597,
+    "byte_count": 1052,
+    "md5": "d16958fd74f5438473c071ed120b46a3",
+    "sha256": "14736d2f0654eacabb5bcd2300002f848e4b0067cc5a70a9cea79d748d13ddac"
+  },
+  {
+    "file": "050.txt",
+    "index": 50,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "051.txt",
+    "index": 51,
+    "is_clear": false,
+    "char_count": 1082,
+    "byte_count": 2086,
+    "md5": "c321f0229728977c1417f93f503ac151",
+    "sha256": "f6299f8ca9bf9bde1dd3625c9dcd6b49fb9bf3938dfb8422161459de1fdc6df4"
+  },
+  {
+    "file": "052.txt",
+    "index": 52,
+    "is_clear": false,
+    "char_count": 623,
+    "byte_count": 1099,
+    "md5": "2d8f439b65b8649048c0269d61f07c93",
+    "sha256": "a490a280d57356dd616bda79d1962c7665dbc9e28efe4fc1b77adc37f73d41e8"
+  },
+  {
+    "file": "053.txt",
+    "index": 53,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "054.txt",
+    "index": 54,
+    "is_clear": false,
+    "char_count": 864,
+    "byte_count": 1665,
+    "md5": "ee63213a8d7126da00b1c8c84b8a8b2a",
+    "sha256": "b46958329bca6f4e2eda28ee5a3ede55f1076a775020cfcfea9cc470a80dc3bd"
+  },
+  {
+    "file": "055.txt",
+    "index": 55,
+    "is_clear": false,
+    "char_count": 596,
+    "byte_count": 1049,
+    "md5": "74eb753b6e91cf34102ec98070134b82",
+    "sha256": "8bf6a344881b1452ab79c9ae51f4f697c1cb2348a4321fcf64a182f1dcfb069a"
+  },
+  {
+    "file": "056.txt",
+    "index": 56,
+    "is_clear": false,
+    "char_count": 939,
+    "byte_count": 1824,
+    "md5": "87ec71e46f00a24ef85a511aa2644ac3",
+    "sha256": "0e7aab8c007524fcf7c9d5ecb5f0922c8196fc1b05d5047796393c117e222437"
+  },
+  {
+    "file": "057.txt",
+    "index": 57,
+    "is_clear": false,
+    "char_count": 753,
+    "byte_count": 1483,
+    "md5": "a0a1b7dc99942ab03d14821c637d6b7a",
+    "sha256": "3e4afd972a2970af68152416ef0dac83414d0783d409d5a5ecd547f60a23ed14"
+  },
+  {
+    "file": "058.txt",
+    "index": 58,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "059.txt",
+    "index": 59,
+    "is_clear": false,
+    "char_count": 1867,
+    "byte_count": 3335,
+    "md5": "2d2d1bcfde994a33c71ac0264a48747c",
+    "sha256": "c08ebfab71c5e20f9f848cbb175f2b87f8f23f2962d4a21253dd394596b9cb27"
+  },
+  {
+    "file": "060.txt",
+    "index": 60,
+    "is_clear": false,
+    "char_count": 710,
+    "byte_count": 1338,
+    "md5": "356277ec3e711c64f33a9ae70a1c803f",
+    "sha256": "0c619e4b1624709f86e3e386cc1dad51ef39d2f6ac5f5abc25973c81927d8f41"
+  },
+  {
+    "file": "061.txt",
+    "index": 61,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "062.txt",
+    "index": 62,
+    "is_clear": false,
+    "char_count": 1023,
+    "byte_count": 1960,
+    "md5": "9541a2f9f73cd38ceb3a2d5cafc753fd",
+    "sha256": "628bd71c42df92730651f53632841b35462b761da2c7ec150f55c76ea76ae274"
+  },
+  {
+    "file": "063.txt",
+    "index": 63,
+    "is_clear": false,
+    "char_count": 559,
+    "byte_count": 1029,
+    "md5": "15df380a94af5f1508f9e3d8fc0c234f",
+    "sha256": "9dcbebfa436e0128b9f98c0b39401878dc146befec7ae5b2dca0f645049a2659"
+  },
+  {
+    "file": "064.txt",
+    "index": 64,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "065.txt",
+    "index": 65,
+    "is_clear": false,
+    "char_count": 847,
+    "byte_count": 1512,
+    "md5": "30a50ca86c5dc0cc592d5495ac3d836f",
+    "sha256": "f5d997a034ce3448806ff0398b2f9b4137ccdbc6eb69a6b1631beefc92f292b0"
+  },
+  {
+    "file": "066.txt",
+    "index": 66,
+    "is_clear": false,
+    "char_count": 553,
+    "byte_count": 1003,
+    "md5": "b5635aed4a1c0e819fbe3167525df13d",
+    "sha256": "542e19ebd1a9e7891a55abbf208de879b2fdf1b17d4fba3300af11e4d3f525fd"
+  },
+  {
+    "file": "067.txt",
+    "index": 67,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "068.txt",
+    "index": 68,
+    "is_clear": false,
+    "char_count": 1066,
+    "byte_count": 2075,
+    "md5": "c3d79cd445ea3c042f8c1d0eb3b21321",
+    "sha256": "839133330187b920c8adbdece36cfc128718da904309f4932862e485c47eb2dc"
+  },
+  {
+    "file": "069.txt",
+    "index": 69,
+    "is_clear": false,
+    "char_count": 561,
+    "byte_count": 1018,
+    "md5": "bf1a8af41865d2e13691b318382ab6ea",
+    "sha256": "c5d302afede8c8c40a82e7c952380a4eb9d4de9428da2de26fadf5e523238f41"
+  },
+  {
+    "file": "070.txt",
+    "index": 70,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "071.txt",
+    "index": 71,
+    "is_clear": false,
+    "char_count": 2550,
+    "byte_count": 3883,
+    "md5": "2543df4d36f0a267b37d70366c99c24b",
+    "sha256": "64a35ccad92f126cdf8d68fb2b3860852304722e1f3ad88167c32ffd944cd097"
+  },
+  {
+    "file": "072.txt",
+    "index": 72,
+    "is_clear": false,
+    "char_count": 815,
+    "byte_count": 1302,
+    "md5": "ab47adfa30f8dbc57bac01ea575e2af4",
+    "sha256": "c93d37b3369801a1a805257f7b3b65cca3c91ffa21b650f5d9de501e018ded12"
+  },
+  {
+    "file": "073.txt",
+    "index": 73,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "074.txt",
+    "index": 74,
+    "is_clear": false,
+    "char_count": 1444,
+    "byte_count": 2762,
+    "md5": "8479acaf14a8ecd946596b8f0b1b847a",
+    "sha256": "30edc489c8abc4ba1cb941ef58624eea9c5cf70f04a55195a95a58facb81f82b"
+  },
+  {
+    "file": "075.txt",
+    "index": 75,
+    "is_clear": false,
+    "char_count": 653,
+    "byte_count": 1191,
+    "md5": "865c6ff3871d326378fb37e8224d13ac",
+    "sha256": "46d73bc2bb05ea4c25378ef067e292af6db2eeaad455ff5b64d4dc0891bfd283"
+  },
+  {
+    "file": "076.txt",
+    "index": 76,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "077.txt",
+    "index": 77,
+    "is_clear": false,
+    "char_count": 1824,
+    "byte_count": 3495,
+    "md5": "54ebc246b840c416daa46ef0ce5af500",
+    "sha256": "0d88b227195dffc8a0a472c725c7049568c479458e1f85443323e33a954120f1"
+  },
+  {
+    "file": "078.txt",
+    "index": 78,
+    "is_clear": false,
+    "char_count": 583,
+    "byte_count": 1013,
+    "md5": "a0fceb80e61991cfea16dc9608d5c29d",
+    "sha256": "41eb470eb57d190996a05e22343a70920314edb3360bac30bae06e8ef0c36575"
+  },
+  {
+    "file": "079.txt",
+    "index": 79,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "080.txt",
+    "index": 80,
+    "is_clear": false,
+    "char_count": 1270,
+    "byte_count": 2242,
+    "md5": "24ede0aa4cf86aabfa98a7065832e618",
+    "sha256": "e6789940927b105a24c1069a80ad2111b13f1e7ca8e085ca4428d250f80e2193"
+  },
+  {
+    "file": "081.txt",
+    "index": 81,
+    "is_clear": false,
+    "char_count": 589,
+    "byte_count": 1061,
+    "md5": "c886b683851099cea60f5ce3884890ae",
+    "sha256": "e683bd212ece0a05db3abf56a5079b1d7a62df0c91fad0fa84301f6f6ff323c1"
+  },
+  {
+    "file": "082.txt",
+    "index": 82,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "083.txt",
+    "index": 83,
+    "is_clear": false,
+    "char_count": 1159,
+    "byte_count": 2243,
+    "md5": "42c468f8d90f1a4fe84100309b59e73e",
+    "sha256": "1351250466d2f23fa0cfea5c8879c21241bfc80d63889326841f771d0e9716bf"
+  },
+  {
+    "file": "084.txt",
+    "index": 84,
+    "is_clear": false,
+    "char_count": 591,
+    "byte_count": 1037,
+    "md5": "82c2bd300e8b4fc81a440a5aa8372098",
+    "sha256": "2467caa39c5f19100492f42ac6cda429d72fcc4af7b2de37a48bf5bacf9851dc"
+  },
+  {
+    "file": "085.txt",
+    "index": 85,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "086.txt",
+    "index": 86,
+    "is_clear": false,
+    "char_count": 974,
+    "byte_count": 1793,
+    "md5": "386d17770fcb4fe952747079a39acd40",
+    "sha256": "6246675af4366064006046ae6cc6b76b2a581665941ad83c755a941af737d429"
+  },
+  {
+    "file": "087.txt",
+    "index": 87,
+    "is_clear": false,
+    "char_count": 589,
+    "byte_count": 1032,
+    "md5": "b1022df8259d70e8de5e0ed7c7967cfa",
+    "sha256": "69ccc244da49f8ec5797fcc565a8ad9ba946d2b05482501af5e2f5267300c427"
+  },
+  {
+    "file": "088.txt",
+    "index": 88,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "089.txt",
+    "index": 89,
+    "is_clear": false,
+    "char_count": 1108,
+    "byte_count": 2094,
+    "md5": "d94e8f0077fa434799df2339941eac3b",
+    "sha256": "bb6ddbb9f09292c8346d42f42ab4c3a61ff653b45ec57552acb6ebd2da67259c"
+  },
+  {
+    "file": "090.txt",
+    "index": 90,
+    "is_clear": false,
+    "char_count": 600,
+    "byte_count": 1036,
+    "md5": "e4436a902e476f482c848e0fbfe6e627",
+    "sha256": "26cbf5c91cd585ce0cf1e3de46cb4945c1335b02a2eaf2a50abd04ba77d4d395"
+  },
+  {
+    "file": "091.txt",
+    "index": 91,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "092.txt",
+    "index": 92,
+    "is_clear": false,
+    "char_count": 1721,
+    "byte_count": 2910,
+    "md5": "f0551b36010b3b91c055c33fcd223903",
+    "sha256": "2ebef3b92e03e8163a19d0ac47333855cc4fcdb1d4beb027c611e1ae34a5464e"
+  },
+  {
+    "file": "093.txt",
+    "index": 93,
+    "is_clear": false,
+    "char_count": 1253,
+    "byte_count": 2482,
+    "md5": "64c5edfd0162d8c2ce9fd5c2e500a5d5",
+    "sha256": "c2b0820ff7fa4e46bbd02df0787c66b79545e74d7eb27307091f7befae126f62"
+  },
+  {
+    "file": "094.txt",
+    "index": 94,
+    "is_clear": false,
+    "char_count": 758,
+    "byte_count": 1469,
+    "md5": "a046fa1977aab3b4c14adc72ce2c4bdb",
+    "sha256": "a811912060b70a29cea612df33c80d530c7712fabf4e388b78d9398ef104343c"
+  },
+  {
+    "file": "095.txt",
+    "index": 95,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "096.txt",
+    "index": 96,
+    "is_clear": false,
+    "char_count": 946,
+    "byte_count": 1704,
+    "md5": "e148c5c3d3cdbace108345e8b0da7ac3",
+    "sha256": "d8a0e222fdde5fc68684445e7597b429a40700da69d52ada6645b76b076638ce"
+  },
+  {
+    "file": "097.txt",
+    "index": 97,
+    "is_clear": false,
+    "char_count": 559,
+    "byte_count": 1108,
+    "md5": "8c5ee0b8a25a31e98e943dc8d650a615",
+    "sha256": "2a2d3f36fdacbc9cffed69d20f9b4e7fc53493268a7dfb5f8f8a2a2b2d493119"
+  },
+  {
+    "file": "098.txt",
+    "index": 98,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "099.txt",
+    "index": 99,
+    "is_clear": false,
+    "char_count": 1112,
+    "byte_count": 1970,
+    "md5": "3ddab31881a87607e2bd8d725174b02f",
+    "sha256": "b40336370790b07e08bcb8a833ceb881b8c6d9c788ece03d7e48c1cd126b7672"
+  },
+  {
+    "file": "100.txt",
+    "index": 100,
+    "is_clear": false,
+    "char_count": 659,
+    "byte_count": 1245,
+    "md5": "78615cdaf079fd25842d3fb575f150cc",
+    "sha256": "ebec3d0ce7a71a0c268757d80fb71772f7e060749fcc75af5cc88f33d717c610"
+  },
+  {
+    "file": "101.txt",
+    "index": 101,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "102.txt",
+    "index": 102,
+    "is_clear": false,
+    "char_count": 862,
+    "byte_count": 1689,
+    "md5": "d08435b4beb97a3381ba258307552569",
+    "sha256": "6d23d88ce74b38ae4379696c579699a1499b60935659ba7f084203b234318506"
+  },
+  {
+    "file": "103.txt",
+    "index": 103,
+    "is_clear": false,
+    "char_count": 544,
+    "byte_count": 1037,
+    "md5": "568fb4c4bb233368fc4186c861b91714",
+    "sha256": "f511f0397cb98d0bae3fb211aa7b3439d866b21a9067815924397c0abb2c79c8"
+  },
+  {
+    "file": "104.txt",
+    "index": 104,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "105.txt",
+    "index": 105,
+    "is_clear": false,
+    "char_count": 807,
+    "byte_count": 1572,
+    "md5": "f177512e28eb181700d548cad0900f60",
+    "sha256": "1772af3e50d91a5de86e1a5fb08af26a0338e18674df56ef920f3e878a850179"
+  },
+  {
+    "file": "106.txt",
+    "index": 106,
+    "is_clear": false,
+    "char_count": 524,
+    "byte_count": 1009,
+    "md5": "2d9f9774818cfee2598dfa74f476b3ed",
+    "sha256": "3ca9e628e041d0ef6b9de41495fdfbefd30a838716b0d804d5dc173bc1b89f70"
+  },
+  {
+    "file": "107.txt",
+    "index": 107,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  },
+  {
+    "file": "108.txt",
+    "index": 108,
+    "is_clear": false,
+    "char_count": 998,
+    "byte_count": 1949,
+    "md5": "55c0d4dd7b69e893f09f9106d20bbc3c",
+    "sha256": "e292fc7b8904c92e3bc0da8f5be95e10903623c931ef65f77d55a0d162f3fb60"
+  },
+  {
+    "file": "109.txt",
+    "index": 109,
+    "is_clear": false,
+    "char_count": 706,
+    "byte_count": 1408,
+    "md5": "8abe1757fd21b6e71f5a03391d02f64a",
+    "sha256": "92c5e93f21bae62250b9ac62065e3c7db69a48c1b4a8d893c25e2b6ea154937f"
+  },
+  {
+    "file": "110.txt",
+    "index": 110,
+    "is_clear": true,
+    "char_count": 6,
+    "byte_count": 6,
+    "md5": "88d054f823d1ff61d2db5c9523dd2f3d",
+    "sha256": "ddf7839cb8fca09abdd9e9b0b2f498885f382f5bf9fec65d95db793bd0f11832"
+  }
+]

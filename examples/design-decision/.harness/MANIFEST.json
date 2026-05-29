@@ -1,0 +1,16 @@
+{
+  "schema_version": "0.1",
+  "harness_name": "design-decision",
+  "harness_version": "0.1.0",
+  "generated_by_run_id": null,
+  "git_sha": null,
+  "nodes": [
+    { "id": "propose", "agent": "proposer", "model": "opus" },
+    { "id": "adjudicate", "agent": "debater", "model": "sonnet" }
+  ],
+  "artifacts": [
+    "_workspace/01_propose/design.json",
+    "_workspace/02_adjudicate/verdict.json"
+  ],
+  "_note": "M0 minimal provenance. generated_by_run_id + git_sha are stamped post-run by a wrapper (workflow.js forbids wall-clock). adjudicate.agent=debater is the wired agentType; the emitter routes both debater turns (sonnet) and the judge pass (opus, via mechanism_params.judge) through it."
+}

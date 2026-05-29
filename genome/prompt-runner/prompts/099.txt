@@ -1,0 +1,37 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 토큰 감축이 목적이 아니다. "최고의 구현·성능·결과물"을 위한
+   context memory 최적화가 목적. 토큰 비용 무시.
+   절대 목표: 최고 결과물. 이것 외 기준은 부차적.
+
+② SOT + RLM 불변 — 철학·목적·핵심 보존. SOT 무결성. RLM 패턴 유지.
+
+③ 승인 후 구현 — 이 턴의 산출물은 "코드베이스·구조 검수·성찰 보고서"뿐.
+   코드·문서 수정은 다음 단계 별도 지시로.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: 언어 원칙 준수 성찰·반영 완료.
+이번 단계: 코드베이스·코드구조 전수 검수 + context memory 최적화 성찰.
+[/SESSION HEADER]
+
+[작업 지시 — 검수 대상]
+1. 워크플로우 절대 목표 대비 미구현·잘못 구현된 부분 탐지. 특히:
+   Task Management System / agent-teams / Agent Swarm / orchestrator /
+   skill-creator / subagent-creator / sub agents / skills / hooks / commands / task verification.
+2. context memory 최적화:
+   - 목적: 최고 결과물을 위한 구조 최적화. (토큰 감축 아님.)
+   - 점검: 계층적 메모리 구조의 효율성, 에이전트 간 컨텍스트 전파,
+           SOT 접근 경로, RLM 패턴에서의 컨텍스트 재사용성.
+
+[성찰 품질 검증 — 3층위]
+1층위 (사실 확인): 절대 목표 ↔ 구현 매핑. 미구현·결함만 나열.
+2층위 (구조 분석): context memory 최적화가 가능한 지점과 그 영향.
+                   최적화가 SOT·RLM·teammate 조율을 훼손할 위험.
+3층위 (철학 정합성): 철학·목적·핵심 보존과 최적화가 양립하는가. 증거 기반.
+
+[출력 형식]
+A. 절대 목표 ↔ 구현 매핑 표. B. 미구현·결함 목록.
+C. context memory 최적화 제안 + 위험 분석. 

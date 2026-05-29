@@ -1,0 +1,31 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 이번 성찰은 workflow.md가 workflow-idea.md의 모든 사항을 완벽 반영했는지 검증.
+   근거 없는 "완벽" 결론 금지.
+② 로컬 실행 불변 — 로컬 실행 전제가 유지되는지 확인.
+③ 제1 핵심 목적 고정 — 대화 전 과정에서 제1 목적을 절대 잊지 말라.
+④ 승인 후 최종 산출 — 출력은 "성찰 보고서"뿐. /prompt/workflow.md 본문 수정 금지.
+   실제 코드 구현 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: workflow.md 초안 정확성·수준 성찰·반영 완료.
+이번 단계: workflow-idea.md ↔ workflow.md 반영 완결성 성찰.
+핵심 참조 파일:
+  - /prompt/workflow.md (감사 대상)
+  - /prompt/workflow-idea/workflow-idea.md (감사 기준)
+[/SESSION HEADER]
+
+[작업 지시]
+1. workflow-idea.md의 각 아이디어를 식별.
+2. workflow.md의 어느 단계·기능에 반영되었는지 매핑.
+3. [완전/부분/누락/왜곡] 분류.
+
+[성찰 품질 검증 — 3층위]
+1층위 (사실 확인): 반영 매핑 표. 매핑되지 않은 아이디어만 나열.
+2층위 (구조 분석): 누락·왜곡이 실제 workflow 실행에서 어떤 블로커인가.
+3층위 (철학 정합성): 제1 목적 훼손 여부. 증거 기반.
+
+[출력 형식]
+A. 매핑 표. B. 누락·왜곡 목록. C. 완벽 반영 판정.

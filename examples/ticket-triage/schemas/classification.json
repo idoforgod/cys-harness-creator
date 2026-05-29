@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "classification.json",
+  "title": "Classification",
+  "description": "Category vote produced by one classifier ballot and the majority-vote winner of the classify_category node. tie_break=first picks the lowest-index ballot on ties. Matches the inlined S.classify_category_schema table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "confidence", "rationale"],
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "The single best-fit support category for the ticket.",
+      "enum": ["billing", "bug", "feature_request", "account", "how_to", "other"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in the chosen category, 0..1. Used by tie_break=highest-confidence when configured."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "One sentence justifying the category from the ticket text."
+    }
+  }
+}

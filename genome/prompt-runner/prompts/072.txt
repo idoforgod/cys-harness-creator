@@ -1,0 +1,26 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 문서는 구현용 설계도다. 모호성은 실패.
+② 승인 후 구현 — 이 턴의 산출물은 /prompt/workflow-coding.md 하나뿐. 실제 구현 금지.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: Infrastructure Build 설계안 제안·대화 확정.
+이번 단계: 확정된 설계안을 /prompt/workflow-coding.md 문서로 저장.
+[/SESSION HEADER]
+
+[작업 지시]
+1. 확정된 설계안을 /prompt/workflow-coding.md 로 기록.
+2. 구성: 아키텍처 개요 / teammate / orchestrator / subagents / skills / hooks /
+         commands / task verification / fork / fallback / SOT / TDD / 영어 운용 /
+         평가 기준 3개 파일(code-convention / ADR / code-quality-guide) 작성 계획.
+3. 각 섹션에 제1 목적 연결·로컬 실행 전제·SOT/RLM 보존 체크.
+
+[품질 검증]
+1층위: 설계안 항목 ↔ 문서 섹션 매핑. 누락만 나열.
+2층위: 문서로 실제 구현 시작 시 어디가 먼저 모호해지는가.
+3층위 (역방향): 문서가 다루지 않은 것.
+
+[출력]
+A. /prompt/workflow-coding.md 목차. B. 섹션별 핵심 요약. C. 모호 지점.

@@ -1,0 +1,6 @@
+{
+  "_note": "Static write-ownership map derived from graph.json node.write_paths. Consumed by validate_harness.py WRITE_PATH_OVERLAP. M0 has NO runtime write-lock hook (single-user tool; Mode A dispatch fan-out writes to disjoint dirs, single-sink merges).",
+  "_workspace/01_category/": "classify_category",
+  "_workspace/02_priority/": "classify_priority",
+  "_workspace/03_route/": "route"
+}

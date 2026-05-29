@@ -1,0 +1,7 @@
+{
+  "name": "cys-harness-marketplace",
+  "owner": { "name": "cys" },
+  "plugins": [
+    { "name": "harness-creator", "source": "./", "description": "도메인→검증·비용통제·게놈전수 하네스 컴파일 팩토리. /harness-creator.", "version": "0.1.0" }
+  ]
+}

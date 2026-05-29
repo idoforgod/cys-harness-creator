@@ -1,0 +1,18 @@
+{
+  "schema_version": "0.1",
+  "harness_name": "ticket-triage",
+  "harness_version": "0.1.0",
+  "generated_by_run_id": null,
+  "git_sha": null,
+  "nodes": [
+    { "id": "classify_category", "agent": "classifier", "model": "sonnet" },
+    { "id": "classify_priority", "agent": "prioritizer", "model": "sonnet" },
+    { "id": "route", "agent": "router", "model": "haiku" }
+  ],
+  "artifacts": [
+    "_workspace/01_category/classification.json",
+    "_workspace/02_priority/priority.json",
+    "_workspace/03_route/routing.json"
+  ],
+  "_note": "M0 minimal provenance. generated_by_run_id + git_sha are stamped post-run by a wrapper (workflow.js forbids wall-clock). Content-addressed evolve ledger deferred to M2."
+}

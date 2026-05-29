@@ -1,0 +1,19 @@
+{
+  "_note": "M1 lift-gate sample fixture. Shape == the runtime return of lift_probe.workflow.js, i.e. what `lift_gate.py score` consumes. Skill: 'cited-summary' (summarize a doc with inline source citations). with_results=sonnet+skill, without_results=haiku baseline, both self-checked against the SAME gold assertions. The baseline fails A1+A2 which are 'must' (hard-gating) -> its pass_rate is 0.0; the with-skill condition passes all 5. EXPECTED: pass_rate_with=1.0, pass_rate_without=0.0, lift=1.0 >= 0.2 -> decision 'register' (exit 0).",
+  "skill": "cited-summary",
+  "assertions": [
+    { "id": "A1", "text": "Every sentence carries an inline [source_id] citation", "polarity": "must" },
+    { "id": "A2", "text": "At least 2 distinct source_ids are cited", "polarity": "must" },
+    { "id": "A3", "text": "No claim appears that is absent from the provided sources", "polarity": "must-not-violate" },
+    { "id": "A4", "text": "Summary is under 150 words", "polarity": "should" },
+    { "id": "A5", "text": "Key quantitative figures from the source are preserved", "polarity": "should" }
+  ],
+  "with_results": {
+    "assertions": ["A1", "A2", "A3", "A4", "A5"],
+    "checks": { "A1": true, "A2": true, "A3": true, "A4": true, "A5": true }
+  },
+  "without_results": {
+    "assertions": ["A1", "A2", "A3", "A4", "A5"],
+    "checks": { "A1": false, "A2": false, "A3": true, "A4": true, "A5": true }
+  }
+}

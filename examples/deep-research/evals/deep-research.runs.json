@@ -1,0 +1,11 @@
+{
+  "_note": "M1 head-to-head full suite fixture: n=5 blind-graded runs of deep-research.scorecard.json (C2 CYS pipeline vs C3 no-harness). Each entry is one run's scorecard (A=C2, B=C3 blind mapping recorded by h2h_suite.workflow.js). Feed to: python3 ../../h2h_aggregate.py deep-research.runs.json --model-id <id> --git-sha <sha> --harness-version 0.1.0. Numbers track the PROVEN live result (CYS beat no-harness +38pp); kept HYPOTHESIS-grade until re-measured from SubagentStop token logs.",
+  "harness_version": "0.1.0",
+  "runs": [
+    { "run": 0, "a_is": "C2", "b_is": "C3", "c2_pass_rate": 0.875, "c3_pass_rate": 0.500 },
+    { "run": 1, "a_is": "C2", "b_is": "C3", "c2_pass_rate": 0.875, "c3_pass_rate": 0.375 },
+    { "run": 2, "a_is": "C2", "b_is": "C3", "c2_pass_rate": 1.000, "c3_pass_rate": 0.500 },
+    { "run": 3, "a_is": "C2", "b_is": "C3", "c2_pass_rate": 0.750, "c3_pass_rate": 0.625 },
+    { "run": 4, "a_is": "C2", "b_is": "C3", "c2_pass_rate": 0.875, "c3_pass_rate": 0.500 }
+  ]
+}

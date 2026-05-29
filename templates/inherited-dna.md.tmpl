@@ -1,0 +1,29 @@
+# {{HARNESS_NAME}} — Harness Genome (게놈 가시화)
+
+> AUTO-EMITTED by emit_workflow.py. This harness INHERITS the CYS Harness Creator
+> constitution (embedded, not referenced). Edits here are overwritten on re-emit.
+
+## Inherited DNA (부모가 넘긴 게놈 — 모든 자식이 임베드)
+- **AC-1 Quality > Everything** — 품질이 유일 기준. 비용은 사전 밴드로 가시화하되 의사결정에서 제외.
+- **AC-2 Single-File SOT + Single-Writer** — SOT = `.harness/MANIFEST.json` + `.harness/graph.json`(불변 계약). 쓰기 단독권(write_lock), atomic write, audit_log는 MANIFEST에만.
+- **AC-3 Code Change Protocol** — 변경 전 의도→영향→설계, 외과적 변경.
+- **Deterministic runtime (CANONICAL)** — `.harness/workflow.js`(Mode A, Workflow 도구). budget.total 하드 ceiling + resumeFromRunId. **이 하네스를 실행하는 정규 런타임.** 상속된 `prompt-runner/`는 graph.json에 연결되지 않은 *대체* 배치 런타임(긴 사람참여 작업용). 라우팅: `.harness/RUNTIME.json`.
+- **Machine-checked gates** — `validate_harness.py`가 상속·티어·스키마·경로·보안 hook을 assert(advisory 아님).
+- **Cost/tier governance** — 역할→모델 티어, TeamCreate/실행 전 비용밴드 승인.
+- **Security hooks (L0)** — block_destructive(Pre/Bash) + secret_filter(Post/Bash·Read) + sensitive_file_guard(Post/Edit·Write).
+- **Measured advantage** — 등록 전 lift 게이트 / 릴리스마다 헤드투헤드(C2 vs C3, 미달 도메인 정직 보고).
+
+## Gene Expression (이 도메인에서의 발현)
+- **Domain:** {{HARNESS_NAME}}
+- **Topology:** {{TOPOLOGY}}
+- **Decision mechanisms:** {{MECHANISMS}}
+- **Nodes ({{NODE_COUNT}}):**
+{{NODE_TABLE}}
+- **Budget ceiling:** {{BUDGET_TOKENS}} tokens (approval_required={{APPROVAL}})
+
+## How to run
+```
+python3 ../../warrant.py --graph .harness/graph.json     # cost band approval
+python3 ../../validate_harness.py .                       # build gate (must PASS)
+# then in Claude Code:  Workflow({ scriptPath: ".harness/workflow.js", args: {...} })
+```

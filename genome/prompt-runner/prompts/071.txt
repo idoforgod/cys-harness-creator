@@ -1,0 +1,72 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — 속도·토큰 비용 완전 무시. 최종 결과물의 "품질·질적 수준"이 절대 기준.
+   정돈된 평가 기준 확보(code-convention / ADR / code-quality-guide)가 품질의 일부.
+
+② SOT 불변 — Source of Truth 구조, 기존 workflow의 철학·목적·핵심은
+   어떤 개선으로도 침범 불가. 침범 가능성이 보이면 설계 제안 전 먼저 보고하라.
+
+③ 로컬 실행 불변 — 모든 구성은 사용자의 로컬 컴퓨터에서 자동 실행 전제.
+
+④ 승인 후 구현 — 이 턴의 출력은 "Infrastructure Build 설계안 제안"뿐.
+   실제 코드 구현·파일 생성은 금지. 대화를 통해 최종 설계안을 완성한다.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+
+→ 충돌 시 ①②③ 중 상위 기준 절대 우선. ②가 흔들리면 ①③ 중단·보고.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: /prompt/workflow.md 다회차 성찰·반영 완료.
+이번 단계: Infrastructure Build (실행 기반 구축) 설계안 제안 → 대화로 완성.
+          (구현 시행은 나의 승인 후.)
+핵심 참조 파일:
+  - /prompt/workflow.md
+  - /prompt/distill-partner.md
+  - /prompt/crystalize-prompt.md
+외부 참조 (반드시 참고):
+  - https://code.claude.com/docs/en/agent-teams
+  - https://www.anthropic.com/engineering/building-c-compiler
+  - https://github.com/ykdojo/claude-code-tips
+  - https://gist.github.com/kieranklaassen/4f2aba89594a4aea4ad64d753984b2ea
+  - https://www.datacamp.com/tutorial/claude-code-hooks
+[/SESSION HEADER]
+
+[작업 지시 — 설계안 구상]
+Claude Code의 Task Management System, fork, agent-teams, Agent Swarm,
+orchestrator agent, sub agents, skills, hooks, commands, task verification 등을
+적절히 조합해 /prompt/workflow.md 의 workflow를 구현한다.
+
+요구사항:
+1) 필요 시 skill-creator, subagent-creator, fork 관리자를 자체 제작 가능.
+2) Task Management System / agent-teams / Agent Swarm / fork 를 기본 장착.
+3) orchestrator agent + sub agents + skills + hooks + commands + task verification + fork
+   를 적절히 조합해 workflow 구현.
+4) fork 기능의 용처는 스스로 판단.
+5) agents / subagents / skills / hooks / commands / task verification 등
+   모든 기능 설명·제작·작동은 **영어** 사용.
+6) teammate 구성은 workflow를 분석해 스스로 결정.
+7) swarmTeam 실패 / teammate 무응답 / 팀 조율 붕괴 시 fallback 경로 필수 설계.
+
+[절대 기준]
+- 품질·질적 수준이 절대 기준 (속도·토큰 완전 무시).
+- orchestrator agent가 전체 sub agents를 총괄.
+- SOT(Source of Truth) 필수.
+- 각 기능마다 TDD 테스트 검증 필수. TDD automation 수행하며 완성도 제고.
+
+[정돈된 평가 기준 — 코드 구현 단계에서 필수]
+- code-convention.md (상시 참고 지침)
+- architectural-decision-records.md (아키텍처 기술적 결정 기록)
+- code-quality-guide.md
+
+[설계 품질 검증 — 보고 전 자기 점검]
+1층위 (사실 확인): 요구사항 1~7 + 절대 기준 4개 + 평가 기준 3개가 설계에 모두 매핑되는가.
+                   누락만 나열.
+2층위 (구조 분석): 이 설계로 실제 구현 시작 시 어디가 먼저 무너지는가.
+                   (예: SOT 충돌, teammate 조율 붕괴 시나리오, fallback 경로 부재)
+3층위 (철학 정합성): 기존 workflow의 철학·목적·핵심이 보존되는가.
+                     SOT 패턴이 침범되는 지점은 없는가. 증거 기반.
+
+[출력 형식 — 설계안 제안]
+A. 전체 아키텍처 개요 (orchestrator / subagents / skills / hooks / commands / fork 역할).
+B. teammate 구성 계획.
+C. SOT · TDD · fallback · 영어 운용 설계.
+D. 평가 기준 3개 파일의 역할·작성 시점.

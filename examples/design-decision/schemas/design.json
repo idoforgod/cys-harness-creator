@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "design.json",
+  "title": "Design",
+  "description": "Candidate technical design from the propose node (producer). Carries the decision under review, the recommended option, and the alternatives the adjudicate debate will stress-test. Matches the inlined S.propose_schema table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision", "recommendation", "options", "tradeoffs"],
+  "properties": {
+    "decision": {
+      "type": "string",
+      "description": "The technical design question being decided (one sentence)."
+    },
+    "recommendation": {
+      "type": "string",
+      "description": "The single option this design recommends. Must be one of options[].name."
+    },
+    "options": {
+      "type": "array",
+      "description": "Candidate options considered, including the recommended one.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "summary"],
+        "properties": {
+          "name": { "type": "string", "description": "Short option label." },
+          "summary": { "type": "string", "description": "What the option is and how it works." }
+        }
+      }
+    },
+    "tradeoffs": {
+      "type": "array",
+      "description": "Why the recommendation wins over the alternatives. One entry per material axis (cost, latency, complexity, risk, etc.).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["axis", "note"],
+        "properties": {
+          "axis": { "type": "string", "description": "The comparison axis." },
+          "note": { "type": "string", "description": "How the recommendation compares on this axis." }
+        }
+      }
+    },
+    "revision_note": {
+      "type": "string",
+      "description": "On a re-proposal, what changed to address the prior verdict's concerns. Empty on the first proposal."
+    }
+  }
+}

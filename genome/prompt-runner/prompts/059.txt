@@ -1,0 +1,62 @@
+[ABSOLUTE ANCHOR]
+① 품질 절대우선 — workflow.md는 "Claude Code가 실제로 자동 실행할 설계도"다.
+   모호성은 실행 실패다. 각 단계가 실행 가능한 입력·출력·판단 기준을 갖추도록.
+
+② 로컬 실행 불변 — 모든 단계는 사용자의 로컬 컴퓨터에서 자동 실행 전제.
+   SaaS·원격 의존 단계는 금지. 외부 API가 필요하면 로컬에서 호출하는 방식으로 명시.
+
+③ 제1 핵심 목적 고정 — 아래 제1 목적은 workflow의 모든 단계·모든 기능에 절대 목표로 고정.
+   제1 목적과의 연결선이 각 단계에 명시되어야 한다.
+
+④ 승인 후 최종 산출 — 이번 턴의 산출물은 /prompt/workflow.md 하나뿐.
+   workflow-generator skill로 생성하되, 저장 위치는 /prompt/workflow.md.
+   실제 코드 구현은 시작 금지. 이 턴은 설계도 작성 단계.
+   승인 요청 시: 구현 의도(1문장) + 영향 파일 + 위험 지점 + 가정 사항.
+
+→ 충돌 시 상위 기준 절대 우선.
+[/ABSOLUTE ANCHOR]
+
+[SESSION HEADER]
+이전 단계: prd.md + workflow-idea.md 확정 + 미결정 사항 권장안 선택 완료.
+이번 단계: workflow.md 설계도 작성 → /prompt/workflow.md
+사용할 skill: /.claude/skills/workflow-generator
+핵심 참조 파일:
+  - /prompt/workflow-idea/workflow-idea.md
+  - /prompt/prd.md
+[/SESSION HEADER]
+
+[사용자 전제]
+사용자는 코드 구현 능력이 전혀 없다. Claude Code가 사용자 의도를 파악해
+로컬 컴퓨터에서 처음부터 끝까지 완벽 자동 구현해준다.
+
+[★ 제1 핵심 목적]
+( 여기에 내가 이 서비스를 만드는 가장 중요한 목적, 혹은 결과물의 모양과 수준을 적는다 )
+
+[읽기 프로토콜 — 4단계 × 2 문서]
+두 파일 각각에 대해 아래 4단계 읽기를 수행.
+1차: 본질(What/Why). 목적·철학·방향.
+2차: 연관 확장. 요구사항·단계·기능·구현 아이디어.
+3차: 중간 부분 정밀 보충.
+4차: [역방향] 이 문서가 다루지 않는 것 중 workflow 설계에 필요한 것 목록화.
+
+[작업 지시]
+1. /prompt/workflow-idea/workflow-idea.md, /prompt/prd.md 두 문서를 4단계 읽기로 파악.
+2. workflow-generator skill(/.claude/skills/workflow-generator)을 사용해 workflow.md 생성.
+3. workflow.md 저장 위치: /prompt/workflow.md
+4. 생성 원칙:
+   - 각 단계는 입력/출력/판단 기준/실패 시 복구가 명시되어야 한다.
+   - 각 단계에 제1 핵심 목적 연결선 명시.
+   - 로컬 실행 전제가 각 단계에 유지되는지 체크.
+5. 이 턴은 설계도 작성이다. 실제 코드 구현은 이후 별도 지시로만 진행.
+
+[작성 품질 검증 — 3층위]
+1층위 (사실 확인): prd.md/workflow-idea.md 요구 ↔ workflow.md 단계 매핑. 누락만 나열.
+2층위 (구조 분석): 이 설계도로 Claude Code가 "처음부터 끝까지" 자동 실행할 때
+                   어디가 먼저 실행 불가능해지는가.
+3층위 (철학 정합성): 각 단계가 제1 핵심 목적을 실제 구현하는가. 증거 기반.
+
+[출력 형식]
+A. 생성된 /prompt/workflow.md 목차.
+B. prd ↔ idea ↔ workflow 매핑.
+C. 각 단계의 (입력/출력/판단/복구/제1 목적 연결) 요약.
+D. 이 설계도에서 실행 가능성이 흔들리는 지점

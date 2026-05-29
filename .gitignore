@@ -1,0 +1,36 @@
+__pycache__/
+*.pyc
+.DS_Store
+# --- emit/inherit GENERATED inside examples (regenerable: python3 emit_workflow.py <ex>) ---
+examples/*/.harness/workflow.js
+examples/*/harness.md
+examples/*/.harness/GENOME.json
+examples/*/.harness/RUNTIME.json
+examples/*/.harness/runs/
+examples/*/_workspace/0[1-9]_*/
+examples/*/.claude/settings.json
+examples/*/.claude/context-snapshots/
+examples/*/.claude/agent-memory/
+examples/*/pacs-logs/
+examples/*/verification-logs/
+# --- transplanted GENOME copies inside examples (regenerable; large) ---
+examples/*/soul.md
+examples/*/AGENTS.md
+examples/*/CLAUDE.md
+examples/*/GEMINI.md
+examples/*/COPYRIGHT.md
+examples/*/DECISION-LOG.md
+examples/*/AGENTICWORKFLOW-*.md
+examples/*/docs/
+examples/*/prompt/
+examples/*/prompt-runner/
+examples/*/translations/
+examples/*/.claude/hooks/
+examples/*/.claude/commands/
+examples/*/.claude/config/
+examples/*/.claude/skills/doctoral-writing/
+examples/*/.claude/skills/workflow-generator/
+examples/*/.claude/skills/spec-grounded-workflow/
+examples/*/.claude/agents/fact-checker.md
+examples/*/.claude/agents/reviewer.md
+examples/*/.claude/agents/translator.md

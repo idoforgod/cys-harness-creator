@@ -1,0 +1,20 @@
+{
+  "schema_version": "0.1",
+  "harness_name": "deep-research",
+  "harness_version": "0.1.0",
+  "generated_by_run_id": null,
+  "git_sha": null,
+  "nodes": [
+    { "id": "gather", "agent": "researcher", "model": "haiku" },
+    { "id": "fetch", "agent": "fetcher", "model": "haiku" },
+    { "id": "verify", "agent": "verifier", "model": "sonnet" },
+    { "id": "synthesize", "agent": "synthesizer", "model": "opus" }
+  ],
+  "artifacts": [
+    "_workspace/01_gather/findings.json",
+    "_workspace/02_fetch/findings.json",
+    "_workspace/03_verify/findings.json",
+    "_workspace/04_report/report.json"
+  ],
+  "_note": "M0 minimal provenance. generated_by_run_id + git_sha are stamped post-run by a wrapper (workflow.js forbids wall-clock). Content-addressed evolve ledger deferred to M2."
+}

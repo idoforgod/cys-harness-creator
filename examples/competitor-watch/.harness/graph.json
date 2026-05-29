@@ -1,0 +1,17 @@
+{
+  "schema_version":"0.1","harness_name":"competitor-watch","harness_version":"0.1.0",
+  "execution_mode":"workflow","topology":"pipeline",
+  "budget":{"total_tokens":300000,"approval_required":true},
+  "nodes":[
+    {"id":"gather","agent":"scout","model":"haiku","decision_mechanism":"single","mechanism_params":{},
+     "inputs":["_workspace/00_input/targets.md"],"outputs":["_workspace/01_gather/items.json"],
+     "write_paths":["_workspace/01_gather/"],"output_schema":"schemas/items.json","retries":1,"on_exhaust":"proceed-with-gap","max_rounds":1},
+    {"id":"dedupe","agent":"deduper","model":"haiku","decision_mechanism":"single","mechanism_params":{},
+     "inputs":["_workspace/01_gather/items.json"],"outputs":["_workspace/02_dedupe/items.json"],
+     "write_paths":["_workspace/02_dedupe/"],"output_schema":"schemas/items.json","retries":1,"on_exhaust":"proceed-with-gap","max_rounds":1},
+    {"id":"brief","agent":"briefer","model":"opus","decision_mechanism":"single","mechanism_params":{},
+     "inputs":["_workspace/02_dedupe/items.json"],"outputs":["_workspace/03_brief/brief.json"],
+     "write_paths":["_workspace/03_brief/"],"output_schema":"schemas/brief.json","retries":0,"on_exhaust":"escalate","max_rounds":1}
+  ],
+  "edges":[{"from":"gather","to":"dedupe"},{"from":"dedupe","to":"brief"}]
+}
