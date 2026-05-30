@@ -35,6 +35,9 @@ examples/*/.claude/agents/fact-checker.md
 examples/*/.claude/agents/reviewer.md
 examples/*/.claude/agents/translator.md
 
+# --- vendored-but-inert prompt-runner: runtime log is not source ---
+genome/prompt-runner/execution.log
+
 # --- session scratch (probes, dogfood genome copy, h2h measurement) ---
 _workspace/dogfood/
 _workspace/h2h/
