@@ -343,6 +343,27 @@ def _genome_checks(harness_dir, r, graph=None):
                 r.err("CONTEXT_PRESERVATION_FIRSTCLASS",
                       "orchestrator SKILL lacks a first-class memory operating section (missing: %s)"
                       % ", ".join(miss), sk)
+            # ALL_PRIMITIVES_PRESENT (M2/A2 floor): a built harness must instantiate ALL 6 primitive
+            # types — orchestrator + agents + hooks + skills (structural, checked elsewhere) AND BOTH
+            # Sub-agents (Agent) and Agent Teams (TeamCreate) in the orchestrator. agent-only (no team)
+            # is not A2-compliant; use team/hybrid (with graceful degrade to sub-agents).
+            # Use the CALL form `TeamCreate(` / `Agent(` — the description line always mentions the words
+            # "Agent/TeamCreate", so word-presence would be vacuous; an actual spawn uses the paren form.
+            prim_missing = []
+            if "Agent(" not in txt:
+                prim_missing.append("Sub-agents (Agent)")
+            if "TeamCreate(" not in txt:
+                prim_missing.append("Agent Teams (TeamCreate)")
+            if prim_missing:
+                r.err("ALL_PRIMITIVES_PRESENT",
+                      "built harness does not instantiate all 6 primitives — orchestrator SKILL lacks: %s "
+                      "(A2: use team/hybrid so both teams and sub-agents are present)" % ", ".join(prim_missing), sk)
+            # TEAM_GRACEFUL_DEGRADE (M2/A2-iii): if teams are used, the orchestrator must document the
+            # Sub-agent fallback for when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is absent (never hard-break).
+            if "TeamCreate(" in txt and "degrade" not in txt.lower() and "강등" not in txt:
+                r.err("TEAM_GRACEFUL_DEGRADE",
+                      "harness uses Agent Teams but documents no Sub-agent fallback for when the "
+                      "experimental Agent-Teams flag is absent (A2-iii)", sk)
 
 
 def _count_phases(text):

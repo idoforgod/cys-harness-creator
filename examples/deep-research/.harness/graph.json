@@ -2,7 +2,7 @@
   "schema_version": "0.1",
   "harness_name": "deep-research",
   "harness_version": "0.1.0",
-  "execution_mode": "agent",
+  "execution_mode": "team",
   "topology": "pipeline",
   "budget": {
     "total_tokens": 600000,

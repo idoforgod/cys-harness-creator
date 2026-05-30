@@ -2,7 +2,7 @@
   "schema_version": "0.1",
   "harness_name": "ticket-triage",
   "harness_version": "0.1.0",
-  "execution_mode": "agent",
+  "execution_mode": "team",
   "topology": "dispatch",
   "budget": {
     "total_tokens": 120000,

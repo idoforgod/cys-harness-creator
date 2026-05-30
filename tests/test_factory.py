@@ -256,6 +256,19 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertNotEqual(team, agent_skill, "team emit must differ from agent emit (was byte-identical)")
         self.assertNotIn("TeamDelete", agent_skill, "agent mode must not emit TeamDelete")
 
+    def test_team_emit_satisfies_all_primitives_floor(self):
+        # M2/A2: team-mode orchestrator must reference Agent Teams (TeamCreate() ) AND Sub-agents
+        # (Agent() ) + a graceful-degrade note (ALL_PRIMITIVES_PRESENT + TEAM_GRACEFUL_DEGRADE). agent-only
+        # must NOT have the team call form, so the floor catches it.
+        g = self._graph(); g["execution_mode"] = "team"
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertIn("TeamCreate(", skill, "team primitive call form (ALL_PRIMITIVES_PRESENT)")
+        self.assertIn("Agent(", skill, "sub-agent primitive call form")
+        self.assertTrue("강등" in skill or "degrade" in skill.lower(), "graceful-degrade note (A2-iii)")
+        a = self._graph(); a["execution_mode"] = "agent"
+        self.assertNotIn("TeamCreate(", emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"])),
+                         "agent-only must not instantiate teams — ALL_PRIMITIVES_PRESENT must catch it")
+
     def test_memory_operating_cycle_first_class(self):
         # M1: long-term memory must be a declared operating cycle in every orchestrator (CONTEXT_
         # PRESERVATION_FIRSTCLASS) — not the old 1-line gap.

@@ -163,6 +163,8 @@ def _team_recipe(graph, order):
         "`qa_gate_runner`가 같은 게이트를 host 인터록으로 재확인.\n"
         "5. **`TeamDelete`** — 모든 task 완료 후 팀 정리(세션당 한 팀; 다음 팀 전 반드시 TeamDelete). 산출물은 "
         "`_workspace/`에 flush.\n"
+        "> **Graceful degrade (A2-iii)**: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` 플래그가 없으면 각 task를 "
+        "`Agent(subagent_type=...)` fan + `_workspace/` 핸드오프로 강등한다 — 팀 없이도 동일 그래프가 실행된다.\n"
         % (name, members, tasks))
 
 
