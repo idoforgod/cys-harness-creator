@@ -57,8 +57,10 @@
 - `h2h_suite.workflow.js`: `tryAgent` 재시도 래퍼(null/throw 시 ATTEMPTS회, 라벨 변주로 캐시회피) + **flake run은 0점이 아니라 DROP**(보고서/채점 누락 run을 median에서 제외 → 가짜 0이 중앙값 왜곡 불가) + provenance `n_attempted/n_valid/n_dropped`.
 - `h2h_aggregate.py`: 무효 run(`valid:false`/키누락) 첫 발견에 raise하던 것을 **필터링**으로 변경(부분실패 suite를 정직하게 집계) + `n_dropped` 보고. 이전 n=5 측정의 7/12 실패 패턴을 구조적으로 흡수.
 
-## ⏳ 남은 일 (P1/P2)
-- **references/ 전면 재구성** — `architecture-patterns.md`·`graph-and-orchestration.md` 등에 일부 옛 'workflow.js' 전제 서술 잔존. **본 문서가 우선.** D1의 8-파일 맵(`genome-and-runtime.md`·`evolution-and-memory.md`·`skill-and-agent-authoring.md` 신설)은 후속.
+### references/ 전면 재구성 ✅ (D1 8-파일 맵)
+- 옛 `examples.md`→`architecture-patterns.md` 흡수, `skill-writing-guide.md`→`skill-and-agent-authoring.md` 개명·확장, 신설 `genome-and-runtime.md`·`evolution-and-memory.md`. 7 파일의 옛 'workflow.js=제품 런타임' 전제 서술을 프리미티브 기질로 재배선(workflow.js는 공장내부 측정 라벨만 잔존). draft→adversarial-verify(코드 대조)→fix 워크플로우로 생산; 발견된 fabrication(없는 critique.json 게이트·날조 측정 description·miscoped STALE_BENCHMARK·BLOCKER qa role-class·절대경로·edges≠depends_on 오기) 전부 코드대조 수정. SKILL.md §참고 8-파일 맵으로 갱신.
+
+## ⏳ 남은 일 (P2)
 - **라이브 풀세션 end-to-end 증명** — emit 후 `cd <harness> && claude` 실세션에서 전 DNA(게이트·메모리·팀) 발화 재확인.
 - **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차).
 

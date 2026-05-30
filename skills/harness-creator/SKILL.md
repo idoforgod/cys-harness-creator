@@ -87,11 +87,12 @@ python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL
 - `templates/hooks/` — `gate_or_block`·`budget_block`·`spawn_counter`·`sot_init`·`qa_gate_runner`(런타임 발화)
 - `emit_workflow.py` — **공장내부 측정 전용**(제품 emit 아님) · `examples/` — 4 작동 예시(team 모드)
 
-## 참고 — references/ (필요 시 Read; **`IMPLEMENTATION-STATUS.md`가 모든 서술에 우선**)
-- `IMPLEMENTATION-STATUS.md` — **먼저 읽기.** 실구현/연기/폐기 현황.
-- `architecture-patterns.md` — R3/P3: 토폴로지×메커니즘 선택, 에이전트 분리 4축, 8 use case→토폴로지.
-- `graph-and-orchestration.md` — P1/I3: graph.json 저작 + emit + 데이터전달 + RUNTIME 라우팅.
-- `skill-writing-guide.md` — I1/I2: agent/스킬 작성, pushy description, Why-not-ALWAYS, output_schema.
-- `testing-and-measurement.md` — I6/E2: validate·lift·h2h(n=5 +12.5pp INCONCLUSIVE)·트리거 near-miss.
-- `qa-guide.md` — QA 경계교차 + 7 버그패턴 + verify-before-assert.
-- `examples.md` — 작동 예시 graph.json으로 배우기.
+## 참고 — references/ (8-파일 맵; 필요 시 Read; **`IMPLEMENTATION-STATUS.md`가 모든 서술에 우선**)
+1. `IMPLEMENTATION-STATUS.md` — **먼저 읽기.** 실구현/연기/폐기 현황(은퇴 workflow.js 포함). 다른 모든 서술에 우선.
+2. `architecture-patterns.md` — R3/P3: 7 토폴로지×4 메커니즘 매트릭스, execution_mode, 에이전트 분리 4축, 8 use case→토폴로지, 실제 예시(examples 흡수).
+3. `graph-and-orchestration.md` — P1/I3: graph.json 저작 + 노드필드(skill_authoring/review) + schema + 실제 team emit(TeamCreate/TaskCreate/SendMessage) + 데이터전달 + CLAUDE.md 포인터.
+4. `skill-and-agent-authoring.md` — I1/I2: agent `.md`(frontmatter·team-comms) + 하이브리드 author-or-inline + pushy description + Why-not-ALWAYS + progressive disclosure + output_schema.
+5. `genome-and-runtime.md` — I4: 상속 DNA가 hook으로 *발화*하는 방식(Context Preservation·L0-L2·budget·SOT·보안) + 2 설치모드(자족/in-project 오버레이) + prompt-runner 제외 + RUNTIME.json.
+6. `evolution-and-memory.md` — Stage 4: Phase-7 진화 루프(피드백 라우팅·change-history·proactive·유지보수) + 2-tier 메모리(Context Preservation + RLM 교차실행 store).
+7. `testing-and-measurement.md` — I6/E2: validate 코드 카탈로그·lift 게이트(score --out→LIFT_REFUSED)·h2h(n=5 +12.5pp INCONCLUSIVE, drop-not-zero)·8 use case eval·트리거 near-miss·dry-run.
+8. `qa-guide.md` — QA 경계교차(존재확인 아님)·증분 QA·7 버그패턴·verify-before-assert·L1/L2 게이트 hook 매핑.
