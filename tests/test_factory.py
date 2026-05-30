@@ -291,6 +291,21 @@ class TestMeasurementDrift(unittest.TestCase):
                 self.assertTrue(any(w in line for w in ("폐기", "deprecated", "stale", "차단", "이전 판본")),
                                 "a +37.5pp mention must be flagged deprecated, not a live win claim: %r" % line)
 
+    def test_design_docs_no_live_stale_benchmark(self):
+        # STALE_BENCHMARK (M8): the FACTORY's own design/ docs are where the marketing lives — extend the
+        # honesty gate to them. Any +38pp / 'CYS WINS' mention must be flagged discarded, and the real
+        # on-disk verdict must be cited. (The in-harness MEASUREMENT_DRIFT does not scan factory docs.)
+        verdict = json.load(open(os.path.join(ROOT, "examples", "deep-research", "evals",
+                                              "deep-research.verdict.json")))["verdict"]
+        flags = ("폐기", "거짓", "deprecated", "discarded", "버려", "모순")
+        for rel in ("design/compare-vs-idoforgod-harness.md", "design/compare-vs-agenticworkflow.md"):
+            doc = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+            self.assertIn(verdict, doc, "%s must cite the real on-disk verdict (%s)" % (rel, verdict))
+            for line in doc.splitlines():
+                if "+38" in line or "CYS WINS" in line or "CYS-WINS" in line:
+                    self.assertTrue(any(w in line for w in flags),
+                                    "%s: +38pp/CYS-WINS must be flagged discarded, never live: %r" % (rel, line))
+
     def test_validate_flags_cys_wins_without_verdict(self):
         with tempfile.TemporaryDirectory() as td:
             os.makedirs(os.path.join(td, "evals"))
