@@ -20,10 +20,21 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import emit_workflow            # noqa: E402
+import emit_orchestrator        # noqa: E402
 import warrant                  # noqa: E402
 import lift_gate                # noqa: E402
 import validate_harness         # noqa: E402
 from toposort import toposort, CycleError  # noqa: E402
+import importlib.util           # noqa: E402
+
+
+def _load_hook(name):
+    """Import a templates/hooks/<name>.py module by path (not on sys.path)."""
+    p = os.path.join(ROOT, "templates", "hooks", name + ".py")
+    spec = importlib.util.spec_from_file_location(name, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 GOLDEN = os.path.join(os.path.dirname(__file__), "golden")
 CORE_EXAMPLES = ["deep-research", "ticket-triage", "design-decision"]
@@ -165,6 +176,93 @@ class TestValidatorTierRules(unittest.TestCase):
 
     def test_opus_on_retrieval_is_pure_retrieval(self):
         self.assertIn("gather", validate_harness.PURE_RETRIEVAL)
+
+
+class TestEmitOrchestrator(unittest.TestCase):
+    """Pivot: graph.json -> orchestrator SKILL + agent frontmatter (primitive substrate).
+    Pure/structural — no genome transplant, no live run (keeps the suite fast & clean)."""
+
+    def _graph(self):
+        return {"schema_version": "0.1", "harness_name": "demo", "harness_version": "0.1.0",
+                "execution_mode": "agent", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [
+                    {"id": "gather", "agent": "researcher", "model": "haiku", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/g.json"],
+                     "write_paths": ["_workspace/g/"], "output_schema": "schemas/g.json",
+                     "tools": ["Read", "WebSearch"], "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                    {"id": "synth", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                     "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                     "review": {"agent": "reviewer"}, "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+                "edges": [{"from": "gather", "to": "synth"}]}
+
+    def test_orchestrator_names_every_node(self):
+        g = self._graph()
+        order = toposort(g["nodes"], g["edges"])
+        skill = emit_orchestrator._orchestrator_skill(g, order)
+        for nid in ("gather", "synth"):
+            self.assertIn(nid, skill, "orchestrator SKILL must name node %s (GRAPH_SKILL_CONSISTENCY)" % nid)
+        self.assertIn("reviewer", skill, "review node must wire the L2 adversarial reviewer")
+        self.assertIn("gate_or_block.py", skill, "gates must be invoked via the blocking wrapper")
+
+    def test_tools_respects_node_then_role_class(self):
+        g = self._graph()
+        self.assertEqual(emit_orchestrator._tools_for(g["nodes"][0]), "Read, WebSearch")  # explicit
+        synth = dict(g["nodes"][1]); synth.pop("tools", None)
+        self.assertIn("Write", emit_orchestrator._tools_for(synth))  # synthesis role-class default
+
+    def test_runtime_manifest_canonical_is_orchestrator(self):
+        rm = emit_orchestrator._runtime_manifest(self._graph())
+        self.assertEqual(rm["canonical_runtime"], "demo-orchestrator")
+        self.assertIn("launch", rm["runtimes"][0], "must record the session-launch handoff (R4)")
+
+
+class TestMeasurementDrift(unittest.TestCase):
+    """The +37.5pp lesson: reference docs must cite the REAL evals verdict, never a stale win."""
+
+    def test_no_stale_h2h_figure_and_real_verdict_cited(self):
+        vp = os.path.join(ROOT, "examples", "deep-research", "evals", "deep-research.verdict.json")
+        verdict = json.load(open(vp))["verdict"]
+        doc = open(os.path.join(ROOT, "skills", "harness-creator", "references",
+                                "testing-and-measurement.md")).read()
+        self.assertIn(verdict, doc, "doc must cite the real verdict on disk (%s)" % verdict)
+        # any mention of the old +37.5pp must be marked deprecated — never presented as a live claim
+        for line in doc.splitlines():
+            if "37.5" in line:
+                self.assertTrue(any(w in line for w in ("폐기", "deprecated", "stale", "차단", "이전 판본")),
+                                "a +37.5pp mention must be flagged deprecated, not a live win claim: %r" % line)
+
+    def test_validate_flags_cys_wins_without_verdict(self):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "evals"))
+            os.makedirs(os.path.join(td, ".claude", "skills", "x-orchestrator"))
+            with open(os.path.join(td, "evals", "x.verdict.json"), "w") as f:
+                json.dump({"verdict": "BASELINE-WINS", "delta_pp": -16.67}, f)
+            with open(os.path.join(td, "README.md"), "w") as f:
+                f.write("This harness is CYS-WINS for sure.\n")
+            rep = validate_harness.Report()
+            validate_harness._measurement_drift(td, rep)
+            codes = [i["code"] for i in rep.items]
+            self.assertIn("MEASUREMENT_DRIFT", codes)
+
+
+class TestPivotHooks(unittest.TestCase):
+    """gate_or_block (advisory->blocking) and budget_block (spawn-count ceiling) decision logic."""
+
+    def test_gate_or_block_verdict(self):
+        g = _load_hook("gate_or_block")
+        self.assertTrue(g.verdict('{"valid": false, "violations": ["x"]}', 0)[0])   # block
+        self.assertFalse(g.verdict('{"valid": true}', 0)[0])                         # pass
+        self.assertTrue(g.verdict('{"status": "fail"}', 0)[0])                       # block
+        self.assertFalse(g.verdict("not json", 0)[0])                                # advisory pass
+        self.assertTrue(g.verdict("anything", 2)[0])                                 # exit2 -> block
+
+    def test_budget_block_decide(self):
+        b = _load_hook("budget_block")
+        self.assertFalse(b.decide(5, 10, 1)[0])    # under ceiling
+        self.assertTrue(b.decide(10, 10, 1)[0])    # over ceiling
+        self.assertFalse(b.decide(0, None, 1)[0])  # no max -> advisory pass
 
 
 if __name__ == "__main__":

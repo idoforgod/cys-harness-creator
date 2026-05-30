@@ -2,6 +2,8 @@
 
 # 아키텍처 패턴 — Topology × Decision-Mechanism 설계
 
+> ⚠️ **PIVOT (2026-05-29)**: 산출 하네스의 canonical 실행모델은 이제 **Claude Code 프리미티브**(`emit_orchestrator.py` → 오케스트레이터 SKILL.md + `.claude/agents`, `execution_mode` `agent`(디폴트)`|team|hybrid`)다. 이 문서의 `workflow.js`/Mode-A 서술은 `execution_mode='workflow'`(byte-결정론 replay) **선택지**에만 적용된다. 구현 현황은 `IMPLEMENTATION-STATUS.md`가 우선하고, 근거는 `design/pivot-to-claude-primitives-strategy.md`.
+
 > 출처: 원본 `agent-design-patterns.md`을 CYS 패러다임으로 적응 (team-vs-subagent 6패턴 모델 → 3 topology × 4 decision-mechanism 매트릭스 + graph.json 계약 + Mode-A/Mode-B + 머신체크 게이트).
 
 이 문서는 **도메인 한 문장 → `graph.json`** 을 저작할 때 "어떤 구조로 짤 것인가"를 결정하는 설계 두뇌다. 원본의 설계 지혜(에이전트 분리 4축, 팀 크기 가이드, 복합 패턴 사고)는 보존하되, CYS의 계약 우선·결정론·역할티어 패러다임으로 재배선했다.
@@ -244,47 +246,37 @@ n명의 debater가 max_rounds 동안 논쟁하고, judge가 최종 판정.
 
 ---
 
-## 8. Mode-A(workflow) vs Mode-B(team) 선택
+## 8. execution_mode 선택 (agent 디폴트 / team / hybrid / workflow)
 
-원본은 "팀이 기본"이었다. CYS는 **Mode-A가 디폴트, Mode-B는 좁은 폴백**이다.
+`graph.json`의 `execution_mode`가 산출 하네스의 런타임을 정한다. **프리미티브 기질(agent/team/hybrid)이 기본**이다 — 그래야 상속된 AWF 게놈(lifecycle hook·L0-L2 게이트·SOT·적대적 리뷰)이 발화하고, 커스텀 `.claude/agents`의 model·tools가 런타임 강제된다(P-1 실측). `workflow`는 byte-결정론 replay가 필수인 드문 경우의 선택지다.
 
-### Mode-A (workflow) — 디폴트
-
-`emit_workflow.py`가 `graph.json`을 `.harness/workflow.js`로 컴파일. Workflow 도구(`agent()`/`parallel()`/`pipeline()`)로 실행되는 **결정론 서브에이전트** 런타임.
-
-- 서브에이전트는 결과를 sink/다음 노드로 반환할 뿐, 서로 실시간 통신하지 않는다.
-- `budget.total`이 하드 ceiling. `resumeFromRunId`로 변경 노드부터 재개. wall-clock/RNG 없음 → 완전 재현 가능.
-- schema 강제 출력(각 노드 `output_schema`).
-
-### Mode-B (team) — 폴백 (`execution_mode: "team"`)
-
-`TeamCreate`로 팀 구성, `SendMessage`로 팀원 직접 통신. **에이전트 간 실시간 inter-agent comms가 작업 성공에 본질적일 때만.**
-
-- **제약(플랫폼 한계):** 팀은 결정론적으로 스케줄될 수 없다. 그래서 `graph.json`에 깔끔히 컴파일되지 않고, 재현·재개·예산 ceiling 보장이 약해진다.
-- **그래서 폴백이다:** 실시간 토론이 *결과 품질을 좌우*하는 좁은 경우(예: producer와 reviewer가 라운드 중간에 서로 도전하며 방향을 실시간 수정해야 하는 협업)에만 선택.
+| mode | 런타임 | emit | 언제 |
+|------|--------|------|------|
+| **`agent`** (디폴트) | Agent 도구 순차/병렬 sub-spawn | `emit_orchestrator.py` | 거의 전부. 부모/자식 hook 발화가 가장 확실(P-1 검증) |
+| `team` | TeamCreate 피어팀 + SendMessage | `emit_orchestrator.py` | 실시간 inter-agent 협상이 품질을 좌우할 때. **P5 라이브 입증 후 승격**(현재 opt-in) |
+| `hybrid` | Phase별 agent/team 혼합 | `emit_orchestrator.py` | 병렬 수집(agent) → 합의 통합(team) 등 |
+| `workflow` | Workflow 도구 `workflow.js` | `emit_workflow.py` | byte-결정론 replay·`resumeFromRunId`가 필수인 좁은 경우. **이 기질에선 AWF 게놈이 휴면**(두 평면 직교) |
 
 ### 선택 의사결정
 
 ```
-에이전트 간 "실시간" inter-agent comms(SendMessage 양방향)가
-결과 품질에 본질적인가?
-├── No  → Mode-A (workflow)   ← 디폴트. 거의 모든 경우.
-│        결과 전달·순차·병렬·경계루프는 전부 Mode-A로 충분.
-│        reflect-then-revise / debate-with-judge도 단일 agentType 내
-│        다중 패스로 Mode-A에서 결정론적으로 구현된다.
-└── Yes → Mode-B (team)       ← 폴백.
-         "이 토론이 파일 전달이 아니라 실시간 대화여야만 하는가?"를
-         자문. 대부분은 reflect-then-revise/debate mechanism으로
-         Mode-A에서 표현 가능하다.
+byte-exact 결정론 replay가 이 하네스에 필수인가?
+├── No  → 프리미티브 기질        ← 디폴트. 거의 전부.
+│        실시간 inter-agent 협상이 품질에 본질적?
+│        ├── No  → execution_mode = agent   (디폴트; 순차/병렬 sub-spawn)
+│        └── Yes → execution_mode = team    (opt-in, P5 입증 후)
+│        (Phase별 혼합이면 hybrid)
+└── Yes → execution_mode = workflow         ← Mode-A 선택지. AWF 게놈 휴면 감수.
 ```
 
-> **핵심 전환:** 원본은 "팀원 간 통신이 정말 불필요한가?"를 물었다(팀 기본). CYS는 반대로 "**실시간 통신이 정말 필수인가?**"를 묻는다(workflow 기본). 토론·비평 같은 협업 패턴조차 Mode-A의 mechanism(debate-with-judge, reflect-then-revise)으로 결정론적으로 표현되므로, 진짜 실시간 양방향 대화가 필요한 좁은 경우만 Mode-B로 넘어간다.
+> **핵심 전환(피벗):** 초기 CYS는 "workflow가 기본"이었으나, 그 기질에서 AWF 게놈 전체가 휴면함이 실측됐다(두 실행평면 직교). 피벗 후 **프리미티브가 기본** — AWF가 설계된 곳이고, 게놈이 실제로 발화하며, 모델티어가 런타임 강제된다. agent vs team은 "실시간 통신이 필수인가"로 가르되, agent를 먼저(부모/자식 hook 발화가 검증된 경우).
 
 ### RUNTIME 라우팅 주의
 
-생성된 하네스는 게놈으로 **두 런타임**을 상속한다. `.harness/RUNTIME.json`이 정규를 선언한다:
-- **CANONICAL = `.harness/workflow.js`** (Mode-A) — `graph.json`에 연결된 유일한 런타임. 이 하네스를 실행하는 정규 방법.
-- **ALTERNATIVE = 상속된 `prompt-runner/run.py`** — AWF의 범용 `claude -p` 배치 엔진. `graph.json`에 *연결되지 않은* 대체 런타임(긴 사람참여 배치용). 같은 작업을 두 런타임으로 돌리지 않는다.
+생성 하네스는 게놈으로 여러 런타임을 상속한다. `.harness/RUNTIME.json`(프리미티브 모드는 `emit_orchestrator`가, workflow 모드는 `inherit_genome`이 작성)이 정규를 선언한다:
+- **CANONICAL = `<name>-orchestrator` SKILL** (프리미티브 디폴트) — `cd <harness> && claude`로 연 라이브 세션에서 이 스킬을 트리거. 그 세션의 settings.json hook이 발화한다(**공장 세션이 아님 — R4 핸드오프**).
+- **OPTIONAL = `.harness/workflow.js`** (Mode-A) — `execution_mode='workflow'`에서만.
+- **ALTERNATIVE = 상속된 `prompt-runner/run.py`** — AWF 범용 `claude -p` 배치(graph.json 미연결). 같은 작업을 둘로 돌리지 않는다.
 
 ---
 

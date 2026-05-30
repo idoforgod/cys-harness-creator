@@ -41,6 +41,8 @@ from atomic_write import atomic_write  # noqa: E402
 
 _RUNTIME_DIRS = [".claude/context-snapshots", ".claude/agent-memory", "pacs-logs", "verification-logs"]
 _CYS_LOG_HOOK = "cys_log_tokens.py"
+# CYS-specific hooks installed alongside the AWF genome (templates/hooks -> child scripts dir).
+_CYS_HOOKS = ["cys_log_tokens.py", "gate_or_block.py", "budget_block.py"]
 _CLAUDE_PTR = """
 
 ---
@@ -98,13 +100,25 @@ def _rsync(src, dst, excludes):
     subprocess.run(args, check=True)
 
 
+def _hook_cmd(script):
+    return ('if test -f "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; then '
+            'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; fi' % (script, script))
+
+
 def _merge_settings(harness_dir):
     base = json.load(open(os.path.join(_GENOME, ".claude", "settings.json"), encoding="utf-8"))
     hooks = base.setdefault("hooks", {})
+    # CYS SubagentStop token log (coarse/advisory). timeout=5s — was 5000 (ms-vs-s bug, CD-5).
     ss = hooks.setdefault("SubagentStop", [])
-    cmd = 'if test -f "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; then python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; fi' % (_CYS_LOG_HOOK, _CYS_LOG_HOOK)
     if not any(_CYS_LOG_HOOK in json.dumps(e) for e in ss):
-        ss.append({"matcher": "*", "hooks": [{"type": "command", "command": cmd, "timeout": 5000}]})
+        ss.append({"matcher": "*", "hooks": [{"type": "command", "command": _hook_cmd(_CYS_LOG_HOOK), "timeout": 5}]})
+    # CYS runtime spawn-count ceiling — PreToolUse(Agent|Task|TeamCreate) budget_block (exit 2).
+    # Disjunction matcher covers the spawn primitive across substrate versions (R2/CD-2):
+    # current Claude Code spawns via `Agent`; legacy genome prose uses `Task`; teams via `TeamCreate`.
+    pre = hooks.setdefault("PreToolUse", [])
+    if not any("budget_block.py" in json.dumps(e) for e in pre):
+        pre.append({"matcher": "Agent|Task|TeamCreate",
+                    "hooks": [{"type": "command", "command": _hook_cmd("budget_block.py"), "timeout": 5}]})
     atomic_write(os.path.join(harness_dir, ".claude", "settings.json"),
                  json.dumps(base, indent=2, ensure_ascii=False) + "\n")
 
@@ -129,7 +143,10 @@ def _verify(harness_dir):
     return errors
 
 
-def inherit(harness_dir, verify_only=False):
+def inherit(harness_dir, verify_only=False, runtime_manifest=None):
+    """Transplant the genome. runtime_manifest overrides the default (workflow.js-canonical)
+    RUNTIME.json — emit_orchestrator passes an orchestrator-skill-canonical manifest for the
+    primitive substrate (execution_mode agent|team|hybrid)."""
     harness_dir = os.path.abspath(harness_dir)
     if not os.path.isdir(_GENOME):
         raise SystemExit("genome/ not found — vendor it first (rsync AgenticWorkflow functional machinery).")
@@ -138,10 +155,12 @@ def inherit(harness_dir, verify_only=False):
         _rsync(_GENOME, harness_dir, excludes=["README.md", ".claude/settings.json"])
         # 2. merge settings.json
         _merge_settings(harness_dir)
-        # 3. install CYS log hook into the AWF scripts dir
-        src = os.path.join(_HERE, "templates", "hooks", _CYS_LOG_HOOK)
-        if os.path.isfile(src):
-            shutil.copyfile(src, os.path.join(harness_dir, ".claude", "hooks", "scripts", _CYS_LOG_HOOK))
+        # 3. install CYS-specific hooks into the AWF scripts dir (token log + gate/budget interlocks)
+        dst_scripts = os.path.join(harness_dir, ".claude", "hooks", "scripts")
+        for hook in _CYS_HOOKS:
+            src = os.path.join(_HERE, "templates", "hooks", hook)
+            if os.path.isfile(src):
+                shutil.copyfile(src, os.path.join(dst_scripts, hook))
         # 4. append CYS pointer to inherited CLAUDE.md (once)
         cm = os.path.join(harness_dir, "CLAUDE.md")
         if os.path.isfile(cm):
@@ -163,7 +182,7 @@ def inherit(harness_dir, verify_only=False):
             "genome_file_count": sum(len(fs) for _, _, fs in os.walk(_GENOME)),
         }, indent=2, ensure_ascii=False) + "\n")
         atomic_write(os.path.join(harness_dir, ".harness", "RUNTIME.json"),
-                     json.dumps(_RUNTIME_MANIFEST, indent=2, ensure_ascii=False) + "\n")
+                     json.dumps(runtime_manifest or _RUNTIME_MANIFEST, indent=2, ensure_ascii=False) + "\n")
     # 7. verify functional
     errs = _verify(harness_dir)
     return errs

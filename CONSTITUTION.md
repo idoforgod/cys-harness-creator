@@ -8,12 +8,12 @@
 속도·토큰비용·작업량·시간제약은 **의사결정 기준에서 제외**한다. 유일한 기준은 **최종 산출물 품질**이다.
 단계를 줄여 빨리 끝내기보다, 단계를 늘려 품질을 높이는 경로를 선택한다.
 - **CYS 강제:** `model-tier-policy.js`가 품질 임계 노드에 최고티어(opus)를 배정 / `warrant.py`가 다층 검증을 비용보다 우선 / 약한 다수(5 weak sub-agents) 대신 강한 소수를 권장.
-- **단, 개인용 도구로서:** "품질 우선"이 "무한 비용"은 아니다. 비용은 *무시*하되 사전 비용밴드 승인(`warrant.py`)으로 *가시화*한다.
+- **단, 개인용 도구로서:** "품질 우선"이 "무한 비용"은 아니다. 비용은 *무시*하되 (a) 사전 `warrant.py` 비용밴드 승인으로 *가시화*하고, (b) 런타임에는 `budget_block.py`(PreToolUse `Agent|Task|TeamCreate`)가 **spawn-count/fanout ceiling**을 exit-2로 강제한다(토큰 per-call 계측은 호스트가 신뢰성 있게 노출하지 않으므로 토큰 tally는 advisory). Mode-A의 Workflow 네이티브 토큰 ceiling은 프리미티브 기질에서 spawn-count ceiling으로 대체된다.
 
 ## AC-2 — Single-File SOT + Single-Writer (단일 진실원·단일 쓰기)
 공유 상태는 단일 진실원에 집중하고, 쓰기 권한은 한 주체(오케스트레이터)에게만 있다. 병렬 에이전트는 read-only이거나 자신의 `output-*` 산출물만 쓴다.
-- **CYS canonical SOT:** `.harness/MANIFEST.json` (provenance/evolve) + `.harness/graph.json` (불변 계약). 런타임 진행은 Workflow 네이티브 `resumeFromRunId`가 담당 — **별도 state 파일을 만들지 않는다**(2-state 드리프트 금지).
-- **CYS 강제:** `harness.lock`(path→node 단일소유) + `write_lock.sh` hook이 비-owner 쓰기 거부 / 모든 SOT 쓰기는 `lib/atomic_write.py`(temp→rename) 경유 / `audit_log`는 **MANIFEST에만** 기록(graph.json 금지 — graph_hash 불변).
+- **CYS canonical SOT:** `.harness/MANIFEST.json` (provenance/evolve) + `.harness/graph.json` (불변 계약) + `.harness/state.yaml` (**라이브 런타임 진행** — AWF SOT). 프리미티브 기질에는 `resumeFromRunId`가 없으므로 진행(current_step/outputs/pacs/audit_log)은 `state.yaml`이 담당하고, 쓰기는 **오케스트레이터(Team Lead) 단독**이며 병렬 멤버는 SendMessage로만 소통(공동쓰기 금지). resume는 AWF context-snapshots 기반 **세션-생존 semantic restore**(byte-exact replay 아님). (Mode-A `execution_mode='workflow'` 선택지에서는 `resumeFromRunId`가 여전히 유효.)
+- **CYS 강제:** `harness.lock`(path→node 단일소유) + 모든 SOT 쓰기는 `lib/atomic_write.py`(temp→rename) 경유 / `state.yaml` 단일쓰기는 오케스트레이터 한정(병렬 실파일 멤버에서 **더 강하게 강제**) / `audit_log`는 **MANIFEST/state.yaml에만** 기록(graph.json 금지 — graph_hash 불변).
 
 ## AC-3 — Code Change Protocol (코드 변경 파급분석)
 코드를 쓰기·수정·추가·삭제하기 전에 ① 의도 명확화 → ② 영향범위 분석 → ③ 변경 설계를 내부 실행한다. 분석 깊이는 변경 규모에 비례한다(proportionality).

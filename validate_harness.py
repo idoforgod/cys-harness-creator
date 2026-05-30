@@ -187,12 +187,43 @@ def validate(harness_dir):
     _doc_drift(harness_dir, r)
 
     # GENOME (AWF DNA graft, D0+D1): inherited-DNA section + L0 security hooks
-    _genome_checks(harness_dir, r)
+    _genome_checks(harness_dir, r, graph)
+
+    # MEASUREMENT_DRIFT: a harness doc must not advertise CYS-WINS unless an evals verdict shows it
+    _measurement_drift(harness_dir, r)
 
     return r
 
 
-def _genome_checks(harness_dir, r):
+def _measurement_drift(harness_dir, r):
+    """Honesty gate (the +37.5pp lesson): if the harness ships h2h verdicts and NONE is
+    CYS-WINS, no in-harness doc (README / orchestrator SKILL) may advertise 'CYS-WINS'."""
+    edir = os.path.join(harness_dir, "evals")
+    if not os.path.isdir(edir):
+        return
+    verdicts = set()
+    for fn in os.listdir(edir):
+        if fn.endswith(".verdict.json"):
+            try:
+                verdicts.add(json.load(open(os.path.join(edir, fn))).get("verdict"))
+            except (OSError, ValueError):
+                pass
+    if not verdicts or "CYS-WINS" in verdicts:
+        return  # no verdicts, or it genuinely wins -> win claims are allowed
+    docs = [os.path.join(harness_dir, "README.md")]
+    sk = os.path.join(harness_dir, ".claude", "skills")
+    if os.path.isdir(sk):
+        for d in os.scandir(sk):
+            cand = os.path.join(d.path, "SKILL.md")
+            if d.is_dir() and os.path.isfile(cand):
+                docs.append(cand)
+    for d in docs:
+        if os.path.isfile(d) and "CYS-WINS" in open(d, encoding="utf-8").read():
+            r.err("MEASUREMENT_DRIFT", "doc advertises CYS-WINS but no evals/*.verdict.json shows it (%s)"
+                  % os.path.basename(d), d)
+
+
+def _genome_checks(harness_dir, r, graph=None):
     """Verify the FULL AgenticWorkflow genome was inherited (전수/유전), not a subset.
     W1_GENOME: harness.md embeds inherited DNA. GENOME_PRESENT: the load-bearing
     machinery files transplanted. HOOK_REGISTERED: settings.json wires the AWF hooks."""
@@ -216,33 +247,53 @@ def _genome_checks(harness_dir, r):
     for rel in must_exist:
         if not os.path.isfile(os.path.join(harness_dir, rel)):
             r.err("GENOME_PRESENT", "genome machinery missing (run emit/inherit_genome): %s" % rel, rel)
-    # RUNTIME_DECLARED: the two inherited runtimes must be disambiguated (canonical = workflow.js)
+    # RUNTIME_DECLARED: dual-accept by execution_mode (CD-6).
+    #   execution_mode='workflow'        -> canonical 'cys-mode-a' (Mode-A workflow.js)
+    #   execution_mode=agent|team|hybrid -> canonical '<harness>-orchestrator' (primitive substrate)
+    mode = (graph or {}).get("execution_mode", "workflow")
+    hname = (graph or {}).get("harness_name", "")
+    expected_canonical = "cys-mode-a" if mode == "workflow" else ("%s-orchestrator" % hname)
     rp = os.path.join(harness_dir, ".harness", "RUNTIME.json")
     if not os.path.isfile(rp):
         r.err("RUNTIME_DECLARED", "no .harness/RUNTIME.json — two-runtime ambiguity unresolved (run inherit_genome)", rp)
     else:
         try:
             rt = json.load(open(rp))
-            if rt.get("canonical_runtime") != "cys-mode-a":
-                r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime must be 'cys-mode-a'", rp)
+            if rt.get("canonical_runtime") != expected_canonical:
+                r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime='%s' but execution_mode='%s' expects '%s'"
+                      % (rt.get("canonical_runtime"), mode, expected_canonical), rp)
             names = {x.get("name") for x in rt.get("runtimes", [])}
             if "awf-prompt-runner" not in names:
                 r.warn("RUNTIME_DECLARED", "RUNTIME.json should declare the inherited 'awf-prompt-runner' alternative", rp)
         except ValueError:
             r.err("RUNTIME_DECLARED", "RUNTIME.json is not valid JSON", rp)
-    # HOOK_REGISTERED: AWF hook wiring present in settings.json
+    # HOOK_REGISTERED: AWF security/context hooks wired; primitive substrate also wires budget_block.
     sp = os.path.join(harness_dir, ".claude", "settings.json")
+    needed_hooks = ["block_destructive_commands.py", "output_secret_filter.py",
+                    "security_sensitive_file_guard.py", "context_guard.py"]
+    if mode != "workflow":
+        needed_hooks.append("budget_block.py")  # BUDGET_HOOK_REGISTERED — primitive spawn ceiling
     if os.path.isfile(sp):
         try:
             cmds = json.dumps(json.load(open(sp)).get("hooks", {}))
-            for needed in ("block_destructive_commands.py", "output_secret_filter.py",
-                           "security_sensitive_file_guard.py", "context_guard.py"):
+            for needed in needed_hooks:
                 if needed not in cmds:
                     r.err("HOOK_REGISTERED", "settings.json does not wire %s" % needed, sp)
         except ValueError:
             r.err("HOOK_REGISTERED", "settings.json is not valid JSON", sp)
     else:
         r.err("HOOK_REGISTERED", "no .claude/settings.json (genome not inherited)", sp)
+    # GRAPH_SKILL_CONSISTENCY: (primitive substrate) the orchestrator SKILL must name every node id
+    # — the prose-vs-graph drift surface idoforgod cannot detect.
+    if mode != "workflow" and graph:
+        sk = os.path.join(harness_dir, ".claude", "skills", "%s-orchestrator" % hname, "SKILL.md")
+        if not os.path.isfile(sk):
+            r.err("GRAPH_SKILL_CONSISTENCY", "no orchestrator SKILL for primitive mode: %s" % sk, sk)
+        else:
+            txt = open(sk, encoding="utf-8").read()
+            missing = [n["id"] for n in graph.get("nodes", []) if n["id"] not in txt]
+            if missing:
+                r.err("GRAPH_SKILL_CONSISTENCY", "orchestrator SKILL omits graph nodes: %s" % ", ".join(missing), sk)
 
 
 def _count_phases(text):

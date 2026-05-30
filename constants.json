@@ -13,5 +13,10 @@
   "LIFT_GATE_THRESHOLD": 0.2,
   "HEAD_TO_HEAD_WIN_MARGIN_PP": 15,
   "BAND_LOW": 500000,
-  "BAND_MED": 5000000
+  "BAND_MED": 5000000,
+  "_pivot_note": "Keys below added for the Claude Code primitive substrate (execution_mode agent|team|hybrid). See design/pivot-to-claude-primitives-strategy.md.",
+  "TEAM_COORD_TOKENS": 4000,
+  "MAX_TEAM_MEMBERS": 7,
+  "SPAWN_CEILING_MARGIN": 1,
+  "SOT_PATH": ".harness/state.yaml"
 }
