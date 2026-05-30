@@ -49,27 +49,22 @@ _CLAUDE_PTR = """
 
 ## CYS Harness Engine (inherited alongside the AgenticWorkflow genome)
 
-This harness carries the FULL AgenticWorkflow genome above AND a CYS deterministic
-Mode-A engine. The two are complementary:
-- **AWF genome** (this file + `.claude/`, `docs/`, `prompt-runner/`): operating constitution,
-  context-preservation hooks, 4-layer quality gates, security, agents, skills.
-- **CYS engine** (`.harness/`): `graph.json` (immutable contract) -> `workflow.js`
-  (deterministic Workflow runtime, budget ceiling + resume), validated by
+This harness carries the FULL AgenticWorkflow genome above AND the CYS machine-checked contract:
+- **AWF genome** (this file + `.claude/`, `docs/`): operating constitution, context-preservation +
+  long-term memory hooks, 4-layer quality gates, security, adversarial-review agents, skills.
+- **CYS contract** (`.harness/`): `graph.json` (immutable, machine-checked), validated by
   `validate_harness.py`, cost-gated by `warrant.py`, measured by `lift_gate`/`h2h`.
 
-### Runtime routing — ONE canonical, no ambiguity (see `.harness/RUNTIME.json`)
-This harness inherits TWO runtimes. They never run the same task and do not call each other:
-- **CANONICAL = CYS Mode-A `.harness/workflow.js`** — THE way to run THIS harness. It is the
-  only runtime wired to `graph.json`. Deterministic, budget-gated, resume-safe, tool-driven.
-- **ALTERNATIVE (inherited) = `prompt-runner/run.py`** — AWF's general `claude -p` batch engine.
-  NOT wired to this harness's `graph.json`; it is inherited *capability*, available for ad-hoc
-  long / human-in-the-loop / rate-limit-exposed batch work — NOT a second way to run this graph.
+### Runtime — ONE runtime, 100% Claude Code primitives (see `.harness/RUNTIME.json`)
+This harness runs as a **live `claude` session** driven by the orchestrator skill in `.claude/skills/`,
+which delegates ALL work to Claude Code primitives (Agent / TeamCreate / SendMessage / TaskCreate).
+**That is the only execution runtime** — there is no compiled `.js` workflow runtime and no subprocess
+batch runner; the inherited `prompt-runner/` is vendored capability, NOT an execution path. The
+inherited genome hooks (context-preservation + long-term memory, L0-L2 quality gates, budget ceiling,
+SOT) fire in that live session.
 
-Routing rule: run this harness via its canonical runtime; reach for prompt-runner only for the
-long human-driven batch case above. Never route one task through both.
-
-Run: `python3 ../../validate_harness.py .` (build gate) then
-`Workflow({ scriptPath: ".harness/workflow.js", args: {...} })`.
+Run: open a session in this dir (`cd <harness_dir> && claude`) and trigger the orchestrator skill;
+`python3 ../../validate_harness.py .` is the build gate.
 """
 
 _RUNTIME_MANIFEST = {

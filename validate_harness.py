@@ -262,9 +262,18 @@ def _genome_checks(harness_dir, r, graph=None):
             if rt.get("canonical_runtime") != expected_canonical:
                 r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime='%s' but execution_mode='%s' expects '%s'"
                       % (rt.get("canonical_runtime"), mode, expected_canonical), rp)
-            names = {x.get("name") for x in rt.get("runtimes", [])}
-            if "awf-prompt-runner" not in names:
-                r.warn("RUNTIME_DECLARED", "RUNTIME.json should declare the inherited 'awf-prompt-runner' alternative", rp)
+            # RUNTIME_MANIFEST_CLEAN (M0/locked-3): a primitive harness advertises exactly ONE
+            # execution runtime — the orchestrator skill. The retired workflow.js and the inherited
+            # prompt-runner subprocess must NOT be listed as runnable runtimes in a produced child.
+            if mode != "workflow":
+                bad = [x.get("name") for x in rt.get("runtimes", [])
+                       if "workflow.js" in (x.get("entrypoint") or "")
+                       or "prompt-runner" in (x.get("entrypoint") or "")
+                       or x.get("name") in ("cys-mode-a-workflow", "awf-prompt-runner")]
+                if bad:
+                    r.err("RUNTIME_MANIFEST_CLEAN",
+                          "produced harness RUNTIME.json advertises a non-primitive runtime: %s "
+                          "(workflow.js/prompt-runner are retired from the product)" % ", ".join(bad), rp)
         except ValueError:
             r.err("RUNTIME_DECLARED", "RUNTIME.json is not valid JSON", rp)
     # HOOK_REGISTERED: AWF security/context hooks wired; primitive substrate also wires budget_block.

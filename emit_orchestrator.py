@@ -110,7 +110,7 @@ def _spawn_recipe(n, prev_label):
     """Prose recipe for spawning one node via the Agent primitive, expanding its mechanism."""
     nid, agent, model, mech = n["id"], n["agent"], n["model"], n["decision_mechanism"]
     mp = n.get("mechanism_params", {})
-    sch = ("schemas/%s.json" % nid) if n.get("output_schema") else "(none)"
+    sch = n.get("output_schema") or "(none)"   # the real schema path (e.g. schemas/findings.json), not schemas/<id>.json
     base = ("`Agent(subagent_type=\"%s\", model=\"%s\")` — 입력=%s, 반환=JSON(%s 스키마 준수)."
             % (agent, model, prev_label, sch))
     lines = ["- **%s** (`%s`, mech=%s): %s" % (nid, agent, mech, base)]
@@ -288,19 +288,15 @@ def _runtime_manifest(graph):
              "wired_to": "graph.json (this harness's contract) via emit_orchestrator",
              "use_when": "default — ALL of this harness's work runs as a live session driven by this skill",
              "launch": "cd <harness_dir> && claude   # THAT session's settings.json hooks fire (not the factory's)"},
-            {"name": "cys-mode-a-workflow", "role": "optional-deterministic",
-             "entrypoint": ".harness/workflow.js",
-             "driver": "Workflow tool", "kind": "byte-deterministic replay (resumeFromRunId)",
-             "wired_to": "graph.json (only when execution_mode='workflow')",
-             "use_when": "rare deterministic-replay-critical case; NOT the primitive default"},
-            {"name": "awf-prompt-runner", "role": "inherited-alternative",
-             "entrypoint": "prompt-runner/run.py", "driver": "claude -p --resume",
-             "kind": "human-driven batch", "wired_to": "NOT wired to graph.json",
-             "use_when": "ad-hoc long / rate-limit-exposed batch; NOT the default"},
         ],
+        # M0/locked-3 (RUNTIME_MANIFEST_CLEAN): the produced harness has exactly ONE execution runtime —
+        # the orchestrator skill (100% Claude Code primitives). The retired Mode-A workflow.js and the
+        # inherited prompt-runner subprocess are NOT advertised as runtimes here; prompt-runner stays
+        # vendored-but-inert (never wired into execution).
         "routing_rule": "Run this harness by opening a `claude` session in its dir and triggering the "
-                        "<name>-orchestrator skill. workflow.js is an optional deterministic alternative; "
-                        "prompt-runner is inherited batch capability. Never route one task through two.",
+                        "<name>-orchestrator skill. This is the ONLY execution runtime — no compiled .js "
+                        "workflow runtime and no subprocess batch runner; the inherited genome hooks fire "
+                        "in that live session.",
     }
 
 
