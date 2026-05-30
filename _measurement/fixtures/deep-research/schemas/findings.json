@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "findings.json",
+  "title": "Findings",
+  "description": "Research findings produced by the gather/fetch nodes and round-tripped by the reflect-then-revise reviser. Claims must be source-backed via source_ids; sources is the evidence pool. Matches the inlined S.findings table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["claims", "sources"],
+  "properties": {
+    "claims": {
+      "type": "array",
+      "description": "Atomic factual claims extracted from research, each tied to one or more sources.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "text", "source_ids", "confidence"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable claim identifier, referenced by critique.issues[].claim_id."
+          },
+          "text": {
+            "type": "string",
+            "description": "The claim as a single declarative sentence."
+          },
+          "source_ids": {
+            "type": "array",
+            "description": "IDs of supporting sources from the sources array. Empty means unsupported (the reviser should drop or flag these).",
+            "items": { "type": "string" }
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Confidence the claim is true and source-backed, 0..1."
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "Evidence pool. Every claim.source_ids entry should resolve to an id here.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "url", "title"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Stable source identifier, referenced by claim.source_ids and report.citations[].source_id."
+          },
+          "url": {
+            "type": "string",
+            "description": "Source URL."
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable source title."
+          }
+        }
+      }
+    }
+  }
+}

@@ -2,6 +2,8 @@
 
 # 하네스 테스트 & 측정 가이드 (CYS)
 
+> ⚠️ **PIVOT (2026-05-29)**: Gate 0/1/2/3 측정 인프라(warrant·validate·lift·h2h)는 substrate-무관하게 그대로다. 단 (1) Gate 3 h2h는 이제 **프리미티브 하네스**(라이브 세션)를 측정하며 byte-결정론이 아닌 통계적(n≥5) 측정이다; (2) 인용된 모든 h2h/lift 수치는 `evals/*.verdict.json`과 일치해야 하고 `validate_harness.py` `MEASUREMENT_DRIFT`가 강제한다(stale +37.5pp 차단). 구현 현황은 `IMPLEMENTATION-STATUS.md` 우선.
+
 > 출처: 원본 `skill-testing-guide.md`을 CYS 패러다임으로 적응.
 
 생성한 하네스의 품질을 **머신체크 게이트**와 **블라인드 측정**으로 검증·등록·반복 개선하는 방법론. SKILL.md Phase 5~7의 보충 레퍼런스.
@@ -308,17 +310,9 @@ python3 "$TR"/h2h_aggregate.py <runs.json> \
 - **verdict**: delta ≥ +15pp → `CYS-WINS` / delta ≤ −15pp → `BASELINE-WINS` / 그 사이 → `INCONCLUSIVE`. 마진은 `HEAD_TO_HEAD_WIN_MARGIN_PP`(15).
 - **provenance**: schema_version / model_id / harness_version / git_sha / n_runs를 스탬프 → 재현·감사 가능.
 
-실제 deep-research fixture(`examples/deep-research/evals/deep-research.runs.json`, n=5):
-```json
-"runs": [
-  { "run": 0, "c2_pass_rate": 0.875, "c3_pass_rate": 0.500 },
-  { "run": 1, "c2_pass_rate": 0.875, "c3_pass_rate": 0.375 },
-  { "run": 2, "c2_pass_rate": 1.000, "c3_pass_rate": 0.500 },
-  { "run": 3, "c2_pass_rate": 0.750, "c3_pass_rate": 0.625 },
-  { "run": 4, "c2_pass_rate": 0.875, "c3_pass_rate": 0.500 }
-]
-```
-→ median(C2)=0.875, median(C3)=0.500, delta=**+37.5pp** ≥ 15pp → `CYS-WINS`. (실측 우위 +38pp를 추적하는 HYPOTHESIS-grade fixture.)
+실제 deep-research fixture(`examples/deep-research/evals/deep-research.runs.json`)는 현재 **n=1 실측**이다 — C2(CYS literal `workflow.js`)=0.833 vs C3(no-harness 단일 opus)=1.0:
+→ median(C2)=0.833, median(C3)=1.0, delta=**−16.67pp** ≤ −15pp → `BASELINE-WINS`. **즉 현재 데이터로는 baseline이 이긴다(정직 기록).** n=1·variance=0으로 통계적으로 빈약하므로, **피벗 후 프리미티브 기질에서 n≥5 + blind 2-grader로 재측정**해 L0-L2·적대적 리뷰 활성화가 A5/A7 실패를 잡아 이 결과를 뒤집는지 확인해야 한다(P5).
+> ⚠️ 이전 판본의 "median(C2)=0.875 / +37.5pp / CYS-WINS"는 **hand-authored HYPOTHESIS fixture**였고 실측과 모순되어 **폐기**됐다. 모든 h2h/lift 인용 수치는 `evals/*.verdict.json`(디스크)과 일치해야 하며, `validate_harness.py`의 `MEASUREMENT_DRIFT` 체크가 이를 강제한다.
 
 ### 5-3. 정직성 규율
 

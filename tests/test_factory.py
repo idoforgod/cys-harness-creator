@@ -20,25 +20,44 @@ sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "lib"))
 
 import emit_workflow            # noqa: E402
+import emit_orchestrator        # noqa: E402
 import warrant                  # noqa: E402
 import lift_gate                # noqa: E402
 import validate_harness         # noqa: E402
 from toposort import toposort, CycleError  # noqa: E402
+import importlib.util           # noqa: E402
+
+
+def _load_hook(name):
+    """Import a templates/hooks/<name>.py module by path (not on sys.path)."""
+    p = os.path.join(ROOT, "templates", "hooks", name + ".py")
+    spec = importlib.util.spec_from_file_location(name, p)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
 
 GOLDEN = os.path.join(os.path.dirname(__file__), "golden")
 CORE_EXAMPLES = ["deep-research", "ticket-triage", "design-decision"]
+# M0: emit_workflow (Mode-A) is retired from the product; its determinism is now guarded against
+# FROZEN workflow-mode fixtures, decoupled from the product examples/ (which are now primitive mode).
+MEASUREMENT_FIX = os.path.join(ROOT, "_measurement", "fixtures")
 
 
 class TestEmitDeterminism(unittest.TestCase):
-    """The single verified-valuable property: same graph.json -> byte-identical workflow.js."""
+    """Factory-internal: emit_workflow (the retired Mode-A emitter, kept for measurement only) stays
+    byte-deterministic. Fixtures are FROZEN workflow-mode graphs under _measurement/fixtures/ —
+    decoupled from the product examples/, which are now primitive (agent/team) mode (M0)."""
 
     def test_emit_byte_identical_to_golden(self):
+        import shutil
         for ex in CORE_EXAMPLES:
-            hd = os.path.join(ROOT, "examples", ex)
-            graph = emit_workflow._load(os.path.join(hd, ".harness", "graph.json"))
-            js = emit_workflow.emit(graph, hd)
-            golden = open(os.path.join(GOLDEN, ex + ".workflow.js")).read()
-            self.assertEqual(js, golden, "%s: emit() drifted from golden (determinism regression)" % ex)
+            with tempfile.TemporaryDirectory() as td:
+                dst = os.path.join(td, ex)
+                shutil.copytree(os.path.join(MEASUREMENT_FIX, ex), dst)
+                graph = emit_workflow._load(os.path.join(dst, ".harness", "graph.json"))
+                js = emit_workflow.emit(graph, dst)
+                golden = open(os.path.join(GOLDEN, ex + ".workflow.js")).read()
+                self.assertEqual(js, golden, "%s: emit() drifted from golden (determinism regression)" % ex)
 
     def test_emitted_has_no_clock_or_rng(self):
         for ex in CORE_EXAMPLES:
@@ -51,6 +70,36 @@ class TestEmitDeterminism(unittest.TestCase):
             js = open(os.path.join(GOLDEN, ex + ".workflow.js")).read()
             self.assertIn("export const meta = {", js)
             self.assertNotIn("export default", js, "%s: must be top-level-statement format" % ex)
+
+
+class TestM0Hooks(unittest.TestCase):
+    """M0d: the three hooks that make the budget ceiling + 4-layer QA actually fire — selftests pass,
+    the interlock loop (sot_init seed -> spawn_counter increment -> budget_block ceiling) closes, and
+    qa_gate_runner's L0 anti-skip blocks a missing deliverable without false-blocking a present one."""
+
+    def test_hook_selftests_pass(self):
+        import subprocess
+        for h in ("spawn_counter", "sot_init", "qa_gate_runner"):
+            p = os.path.join(ROOT, "templates", "hooks", h + ".py")
+            rc = subprocess.run([sys.executable, p, "--selftest"], capture_output=True).returncode
+            self.assertEqual(rc, 0, "%s --selftest failed" % h)
+
+    def test_budget_interlock_loop_fires(self):
+        spawn = _load_hook("spawn_counter"); budget = _load_hook("budget_block"); sot = _load_hook("sot_init")
+        self.assertFalse(budget.decide(2, 8, 1)[0], "under ceiling allows")
+        self.assertTrue(budget.decide(7, 8, 1)[0], "at ceiling-margin blocks (the loop the audit said never fired)")
+        txt, val = spawn.bump("budget:\n  spawns_used: 4\n  max_spawns: 8\n")
+        self.assertEqual(val, 5); self.assertIn("spawns_used: 5", txt)
+        self.assertGreaterEqual(sot.estimate_max_spawns({"nodes": [{"decision_mechanism": "single"}]}), 1)
+
+    def test_qa_gate_runner_l0_anti_skip(self):
+        qa = _load_hook("qa_gate_runner")
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "_workspace", "n"))
+            good = os.path.join("_workspace", "n", "ok.md")
+            open(os.path.join(td, good), "w").write("x" * 200)
+            self.assertFalse(qa.l0_block(1, {1: good}, td)[0], "present deliverable must not false-block")
+            self.assertTrue(qa.l0_block(1, {1: "_workspace/n/missing.md"}, td)[0], "missing deliverable must block")
 
 
 class TestToposort(unittest.TestCase):
@@ -165,6 +214,342 @@ class TestValidatorTierRules(unittest.TestCase):
 
     def test_opus_on_retrieval_is_pure_retrieval(self):
         self.assertIn("gather", validate_harness.PURE_RETRIEVAL)
+
+
+class TestEmitOrchestrator(unittest.TestCase):
+    """Pivot: graph.json -> orchestrator SKILL + agent frontmatter (primitive substrate).
+    Pure/structural — no genome transplant, no live run (keeps the suite fast & clean)."""
+
+    def _graph(self):
+        return {"schema_version": "0.1", "harness_name": "demo", "harness_version": "0.1.0",
+                "execution_mode": "agent", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [
+                    {"id": "gather", "agent": "researcher", "model": "haiku", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/g.json"],
+                     "write_paths": ["_workspace/g/"], "output_schema": "schemas/g.json",
+                     "tools": ["Read", "WebSearch"], "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                    {"id": "synth", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                     "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                     "review": {"agent": "reviewer"}, "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+                "edges": [{"from": "gather", "to": "synth"}]}
+
+    def test_orchestrator_names_every_node(self):
+        g = self._graph()
+        order = toposort(g["nodes"], g["edges"])
+        skill = emit_orchestrator._orchestrator_skill(g, order)
+        for nid in ("gather", "synth"):
+            self.assertIn(nid, skill, "orchestrator SKILL must name node %s (GRAPH_SKILL_CONSISTENCY)" % nid)
+        self.assertIn("reviewer", skill, "review node must wire the L2 adversarial reviewer")
+        self.assertIn("gate_or_block.py", skill, "gates must be invoked via the blocking wrapper")
+
+    def test_team_mode_emits_real_primitives_not_vaporware(self):
+        # M0d: team mode must drive the ACTUAL team primitives, and differ from agent emit (was
+        # byte-identical — the verified vaporware gap).
+        g = self._graph(); g["execution_mode"] = "team"
+        team = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for p in ("TeamCreate", "TaskCreate", "TeamDelete", "SendMessage", "depends_on"):
+            self.assertIn(p, team, "team mode must emit %s (TEAM_EMIT_PRESENT)" % p)
+        a = self._graph(); a["execution_mode"] = "agent"
+        agent_skill = emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"]))
+        self.assertNotEqual(team, agent_skill, "team emit must differ from agent emit (was byte-identical)")
+        self.assertNotIn("TeamDelete", agent_skill, "agent mode must not emit TeamDelete")
+
+    def test_team_emit_satisfies_all_primitives_floor(self):
+        # M2/A2: team-mode orchestrator must reference Agent Teams (TeamCreate() ) AND Sub-agents
+        # (Agent() ) + a graceful-degrade note (ALL_PRIMITIVES_PRESENT + TEAM_GRACEFUL_DEGRADE). agent-only
+        # must NOT have the team call form, so the floor catches it.
+        g = self._graph(); g["execution_mode"] = "team"
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertIn("TeamCreate(", skill, "team primitive call form (ALL_PRIMITIVES_PRESENT)")
+        self.assertIn("Agent(", skill, "sub-agent primitive call form")
+        self.assertTrue("강등" in skill or "degrade" in skill.lower(), "graceful-degrade note (A2-iii)")
+        a = self._graph(); a["execution_mode"] = "agent"
+        self.assertNotIn("TeamCreate(", emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"])),
+                         "agent-only must not instantiate teams — ALL_PRIMITIVES_PRESENT must catch it")
+
+    def test_topology_recipes_emit_first_class(self):
+        # M2-2: the 4 topologies beyond pipeline/dispatch/producer-reviewer each emit their recipe
+        # (TOPOLOGY_PRIMITIVE_CONSISTENCY then enforces it at validate time).
+        for topo, mode, marker in [("supervisor", "team", "동적"), ("expert-pool", "agent", "라우터"),
+                                   ("hierarchical", "team", "깊이는 2"), ("fan-out-fan-in", "team", "병렬 수집")]:
+            g = self._graph(); g["topology"] = topo; g["execution_mode"] = mode
+            s = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+            self.assertIn("### 토폴로지:", s, "%s must emit a topology recipe" % topo)
+            self.assertIn(marker, s, "%s recipe must contain its signature %r" % (topo, marker))
+
+    def test_memory_operating_cycle_first_class(self):
+        # M1: long-term memory must be a declared operating cycle in every orchestrator (CONTEXT_
+        # PRESERVATION_FIRSTCLASS) — not the old 1-line gap.
+        g = self._graph()
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for marker in ("메모리 운영", "knowledge-index", "latest.md", "CONTEXT RECOVERY"):
+            self.assertIn(marker, skill, "orchestrator must declare memory operating cycle: %s" % marker)
+
+    def test_evolution_loop_wired(self):
+        # M5: every orchestrator carries the Phase-7 evolution loop (EVOLUTION_WIRED).
+        g = self._graph()
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for marker in ("진화", "evolve_harness", "change-history"):
+            self.assertIn(marker, skill, "orchestrator must wire the evolution loop: %s" % marker)
+
+    def test_tools_respects_node_then_role_class(self):
+        g = self._graph()
+        self.assertEqual(emit_orchestrator._tools_for(g["nodes"][0]), "Read, WebSearch")  # explicit
+        synth = dict(g["nodes"][1]); synth.pop("tools", None)
+        self.assertIn("Write", emit_orchestrator._tools_for(synth))  # synthesis role-class default
+
+    def test_runtime_manifest_canonical_is_orchestrator(self):
+        rm = emit_orchestrator._runtime_manifest(self._graph())
+        self.assertEqual(rm["canonical_runtime"], "demo-orchestrator")
+        self.assertIn("launch", rm["runtimes"][0], "must record the session-launch handoff (R4)")
+
+
+class TestDomainSkill(unittest.TestCase):
+    """M3 hybrid authoring: a skill-mode node authors a .claude/skills/<harness>-<id>/SKILL.md (the 'how');
+    inline nodes (the default) author nothing — the 'how' stays in the agent body."""
+
+    def _g(self, sa):
+        node = {"id": "synth", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json", "retries": 0,
+                "on_exhaust": "escalate", "max_rounds": 1}
+        if sa is not None:
+            node["skill_authoring"] = sa
+        return {"schema_version": "0.1", "harness_name": "dh", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True}, "nodes": [node], "edges": []}
+
+    def test_skill_mode_authors_inline_does_not(self):
+        import emit_domain_skill
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "skill", "reason": "complex"}), td),
+                             ["dh-synth"])
+            sk = os.path.join(td, ".claude", "skills", "dh-synth", "SKILL.md")
+            self.assertTrue(os.path.isfile(sk))
+            body = open(sk, encoding="utf-8").read()
+            self.assertIn("name: dh-synth", body)
+            self.assertIn("how", body.lower())
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g(None), td), [],
+                             "node without skill_authoring (inline default) authors no skill")
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
+
+
+class TestEightUseCases(unittest.TestCase):
+    """M7 / R2 parity bar: the factory must emit a CONFORMING harness shape for all 8 idoforgod README
+    use cases — build-level (graph conforms to the contract; orchestrator has the right topology recipe,
+    the A2 all-primitive floor, and the mandatory DNA). Run-level h2h is a separate quota-gated lane."""
+
+    USE_CASES = [
+        ("Deep Research", "fan-out-fan-in", "team"),
+        ("Website Development", "pipeline", "team"),
+        ("Webtoon / Comic Production", "producer-reviewer", "team"),
+        ("YouTube Content Planning", "supervisor", "team"),
+        ("Code Review & Refactoring", "fan-out-fan-in", "team"),
+        ("Technical Documentation", "pipeline", "team"),
+        ("Data Pipeline Design", "hierarchical", "team"),
+        ("Marketing Campaign", "producer-reviewer", "team"),
+    ]
+
+    def _graph(self, topology, exec_mode):
+        return {"schema_version": "0.1", "harness_name": "use-case", "harness_version": "0.1.0",
+                "execution_mode": exec_mode, "topology": topology,
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [{"id": "work", "agent": "worker", "model": "sonnet", "decision_mechanism": "single",
+                           "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/work.json"],
+                           "write_paths": ["_workspace/work/"], "output_schema": "", "retries": 0,
+                           "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+
+    def test_all_eight_use_cases_conform(self):
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("jsonschema not installed")
+        import eval_topology
+        schema = json.load(open(os.path.join(ROOT, "graph.schema.json")))
+        topos = set()
+        for use_case, topology, exec_mode in self.USE_CASES:
+            g = self._graph(topology, exec_mode)
+            jsonschema.validate(g, schema)  # graph conforms to the machine contract
+            skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+            mism = eval_topology.match(g, skill, {"use_case": use_case, "topology": topology, "exec_mode": exec_mode})
+            self.assertEqual(mism, [], "%s did not conform: %s" % (use_case, mism))
+            topos.add(topology)
+        self.assertEqual(len(self.USE_CASES), 8, "all 8 idoforgod use cases covered (USECASE_COVERAGE)")
+        self.assertGreaterEqual(len(topos), 4, "the 8 use cases must exercise multiple first-class topologies")
+
+
+class TestMemoryStore(unittest.TestCase):
+    """M6: Tier-II cross-run domain memory store — seeded, idempotent (accretes run over run), RLM-queried."""
+
+    def test_init_seeds_and_is_idempotent(self):
+        import inherit_genome as ig
+        with tempfile.TemporaryDirectory() as td:
+            ig._init_memory_store(td)
+            mem = os.path.join(td, ".harness", "memory")
+            for rel in ("archive.manifest.json", "domain-knowledge.yaml", os.path.join("runs", "index.jsonl")):
+                self.assertTrue(os.path.isfile(os.path.join(mem, rel)), "seed missing: %s" % rel)
+            idx = os.path.join(mem, "runs", "index.jsonl")
+            with open(idx, "a") as f:
+                f.write('{"run_id":"r1"}\n')
+            ig._init_memory_store(td)  # re-run
+            self.assertIn("r1", open(idx).read(), "re-init must not clobber accumulated runs")
+
+    def test_orchestrator_declares_tier2_rlm_recipe(self):
+        g = {"schema_version": "0.1", "harness_name": "m", "harness_version": "0.1.0", "execution_mode": "team",
+             "topology": "pipeline", "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "a", "agent": "agt", "model": "haiku", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/a.json"],
+                        "write_paths": ["_workspace/a/"], "output_schema": "", "retries": 0,
+                        "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+        s = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertIn("교차-실행 도메인 메모리", s)
+        self.assertIn("runs/index.jsonl", s)
+        self.assertIn("Grep", s, "RLM: query the index programmatically, never bulk-load")
+
+
+class TestEvolve(unittest.TestCase):
+    """M5 Phase-7: evolve_harness routes feedback deterministically + proposes evolution on recurrence."""
+
+    def test_route_feedback(self):
+        import evolve_harness as ev
+        self.assertEqual(ev.route_feedback("workflow-order"), "orchestrator")
+        self.assertEqual(ev.route_feedback("trigger-miss"), "skill-description")
+        self.assertIsNone(ev.route_feedback("nonsense"))
+
+    def test_record_and_proactive(self):
+        import evolve_harness as ev
+        with tempfile.TemporaryDirectory() as td:
+            ev.record(td, "2026-05-30", "result-quality", "deepen", "shallow")
+            ev.record(td, "2026-05-30", "result-quality", "sources", "thin")
+            ev.record(td, "2026-05-30", "trigger-miss", "kw", "missed")
+            hist = ev.read_history(td)
+            self.assertEqual(len(hist), 3, "append-only log accumulates")
+            ft = {p["feedback_type"] for p in ev.proactive_proposals(hist)}
+            self.assertIn("result-quality", ft, "2x -> proposed")
+            self.assertNotIn("trigger-miss", ft, "1x -> not proposed")
+            with self.assertRaises(ValueError):
+                ev.record(td, "d", "bogus-type", "c", "r")
+
+
+class TestAudit(unittest.TestCase):
+    """M4 Phase-0: audit_harness classifies new/extend/maintain and detects drift deterministically."""
+
+    def test_classify_branch(self):
+        import audit_harness as ah
+        self.assertEqual(ah.classify_branch({"has_graph": False, "agents_on_disk": set()}, []), "new")
+        self.assertEqual(ah.classify_branch({"has_graph": True, "agents_on_disk": {"a"}}, []), "extend")
+        self.assertEqual(ah.classify_branch({"has_graph": True, "agents_on_disk": {"a"}}, [{"kind": "agent"}]), "maintain")
+
+    def test_drift_set_diffs(self):
+        import audit_harness as ah
+        g = {"harness_name": "h", "nodes": [
+            {"id": "a", "agent": "researcher"},
+            {"id": "b", "agent": "synth", "skill_authoring": {"mode": "skill", "reason": "complex"}}]}
+        kinds = {(d["kind"], d["name"]) for d in ah.compute_drift(g, {"researcher", "orphan"}, set())}
+        self.assertIn(("agent", "orphan"), kinds, "on-disk agent not in graph = drift")
+        self.assertIn(("agent", "synth"), kinds, "graph agent not on disk = drift")
+        self.assertIn(("skill", "h-b"), kinds, "graph-implied skill not on disk = drift")
+        self.assertNotIn(("agent", "researcher"), kinds, "matched agent is not drift")
+
+
+class TestMeasurementDrift(unittest.TestCase):
+    """The +37.5pp lesson: reference docs must cite the REAL evals verdict, never a stale win."""
+
+    def test_no_stale_h2h_figure_and_real_verdict_cited(self):
+        vp = os.path.join(ROOT, "examples", "deep-research", "evals", "deep-research.verdict.json")
+        verdict = json.load(open(vp))["verdict"]
+        doc = open(os.path.join(ROOT, "skills", "harness-creator", "references",
+                                "testing-and-measurement.md")).read()
+        self.assertIn(verdict, doc, "doc must cite the real verdict on disk (%s)" % verdict)
+        # any mention of the old +37.5pp must be marked deprecated — never presented as a live claim
+        for line in doc.splitlines():
+            if "37.5" in line:
+                self.assertTrue(any(w in line for w in ("폐기", "deprecated", "stale", "차단", "이전 판본")),
+                                "a +37.5pp mention must be flagged deprecated, not a live win claim: %r" % line)
+
+    def test_design_docs_no_live_stale_benchmark(self):
+        # STALE_BENCHMARK (M8): the FACTORY's own design/ docs are where the marketing lives — extend the
+        # honesty gate to them. Any +38pp / 'CYS WINS' mention must be flagged discarded, and the real
+        # on-disk verdict must be cited. (The in-harness MEASUREMENT_DRIFT does not scan factory docs.)
+        verdict = json.load(open(os.path.join(ROOT, "examples", "deep-research", "evals",
+                                              "deep-research.verdict.json")))["verdict"]
+        flags = ("폐기", "거짓", "deprecated", "discarded", "버려", "모순")
+        for rel in ("design/compare-vs-idoforgod-harness.md", "design/compare-vs-agenticworkflow.md"):
+            doc = open(os.path.join(ROOT, rel), encoding="utf-8").read()
+            self.assertIn(verdict, doc, "%s must cite the real on-disk verdict (%s)" % (rel, verdict))
+            for line in doc.splitlines():
+                if "+38" in line or "CYS WINS" in line or "CYS-WINS" in line:
+                    self.assertTrue(any(w in line for w in flags),
+                                    "%s: +38pp/CYS-WINS must be flagged discarded, never live: %r" % (rel, line))
+
+    def test_validate_flags_cys_wins_without_verdict(self):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "evals"))
+            os.makedirs(os.path.join(td, ".claude", "skills", "x-orchestrator"))
+            with open(os.path.join(td, "evals", "x.verdict.json"), "w") as f:
+                json.dump({"verdict": "BASELINE-WINS", "delta_pp": -16.67}, f)
+            with open(os.path.join(td, "README.md"), "w") as f:
+                f.write("This harness is CYS-WINS for sure.\n")
+            rep = validate_harness.Report()
+            validate_harness._measurement_drift(td, rep)
+            codes = [i["code"] for i in rep.items]
+            self.assertIn("MEASUREMENT_DRIFT", codes)
+
+
+class TestTierPolicyMirror(unittest.TestCase):
+    """C16: validate_harness.TIER_BY_ROLE_CLASS hand-mirrors model-tier-policy.js. Catch drift."""
+
+    def test_py_and_js_tier_maps_match(self):
+        import shutil
+        import subprocess
+        if not shutil.which("node"):
+            self.skipTest("node not installed")
+        js = os.path.join(ROOT, "model-tier-policy.js")
+        out = subprocess.run(["node", "-e",
+                              "process.stdout.write(JSON.stringify(require('%s').TIER_BY_ROLE_CLASS))" % js],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, "node failed: " + out.stderr)
+        self.assertEqual(json.loads(out.stdout), validate_harness.TIER_BY_ROLE_CLASS,
+                         "tier map drift between model-tier-policy.js and validate_harness.py — keep in sync")
+
+
+class TestWarrantTeamCost(unittest.TestCase):
+    """CD-3: cost_band adds team-coordination tokens under execution_mode team|hybrid."""
+
+    def test_team_mode_costs_more_than_agent(self):
+        nodes = [{"id": "a", "model": "haiku", "decision_mechanism": "single", "retries": 0},
+                 {"id": "b", "model": "sonnet", "decision_mechanism": "single", "retries": 0}]
+        agent = warrant.cost_band(nodes, execution_mode="agent")
+        team = warrant.cost_band(nodes, execution_mode="team")
+        self.assertEqual(agent["team_coordination_tokens"], 0)
+        self.assertGreater(team["team_coordination_tokens"], 0)
+        self.assertGreater(team["total_tokens"], agent["total_tokens"])
+
+    def test_default_is_agent_backward_compatible(self):
+        nodes = [{"id": "a", "model": "haiku", "decision_mechanism": "single", "retries": 0}]
+        self.assertEqual(warrant.cost_band(nodes)["team_coordination_tokens"], 0)
+
+
+class TestPivotHooks(unittest.TestCase):
+    """gate_or_block (advisory->blocking) and budget_block (spawn-count ceiling) decision logic."""
+
+    def test_gate_or_block_verdict(self):
+        g = _load_hook("gate_or_block")
+        self.assertTrue(g.verdict('{"valid": false, "violations": ["x"]}', 0)[0])   # block
+        self.assertFalse(g.verdict('{"valid": true}', 0)[0])                         # pass
+        self.assertTrue(g.verdict('{"status": "fail"}', 0)[0])                       # block
+        self.assertFalse(g.verdict("not json", 0)[0])                                # advisory pass
+        self.assertTrue(g.verdict("anything", 2)[0])                                 # exit2 -> block
+
+    def test_budget_block_decide(self):
+        b = _load_hook("budget_block")
+        self.assertFalse(b.decide(5, 10, 1)[0])    # under ceiling
+        self.assertTrue(b.decide(10, 10, 1)[0])    # over ceiling
+        self.assertFalse(b.decide(0, None, 1)[0])  # no max -> advisory pass
 
 
 if __name__ == "__main__":

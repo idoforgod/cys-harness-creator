@@ -2,40 +2,91 @@
   "schema_version": "0.1",
   "harness_name": "ticket-triage",
   "harness_version": "0.1.0",
-  "execution_mode": "workflow",
+  "execution_mode": "team",
   "topology": "dispatch",
-  "budget": { "total_tokens": 120000, "approval_required": true },
+  "budget": {
+    "total_tokens": 120000,
+    "approval_required": true
+  },
   "nodes": [
     {
-      "id": "classify_category", "agent": "classifier", "model": "sonnet", "decision_mechanism": "majority-vote",
-      "mechanism_params": { "n": 3, "quorum": 2, "tie_break": "first" },
-      "inputs": ["_workspace/00_input/ticket.md"],
-      "outputs": ["_workspace/01_category/classification.json"],
-      "write_paths": ["_workspace/01_category/"],
+      "id": "classify_category",
+      "agent": "classifier",
+      "model": "sonnet",
+      "decision_mechanism": "majority-vote",
+      "mechanism_params": {
+        "n": 3,
+        "quorum": 2,
+        "tie_break": "first"
+      },
+      "inputs": [
+        "_workspace/00_input/ticket.md"
+      ],
+      "outputs": [
+        "_workspace/01_category/classification.json"
+      ],
+      "write_paths": [
+        "_workspace/01_category/"
+      ],
       "output_schema": "schemas/classification.json",
-      "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1
+      "retries": 1,
+      "on_exhaust": "proceed-with-gap",
+      "max_rounds": 1
     },
     {
-      "id": "classify_priority", "agent": "prioritizer", "model": "sonnet", "decision_mechanism": "majority-vote",
-      "mechanism_params": { "n": 3, "quorum": 2, "tie_break": "first" },
-      "inputs": ["_workspace/00_input/ticket.md"],
-      "outputs": ["_workspace/02_priority/priority.json"],
-      "write_paths": ["_workspace/02_priority/"],
+      "id": "classify_priority",
+      "agent": "prioritizer",
+      "model": "sonnet",
+      "decision_mechanism": "majority-vote",
+      "mechanism_params": {
+        "n": 3,
+        "quorum": 2,
+        "tie_break": "first"
+      },
+      "inputs": [
+        "_workspace/00_input/ticket.md"
+      ],
+      "outputs": [
+        "_workspace/02_priority/priority.json"
+      ],
+      "write_paths": [
+        "_workspace/02_priority/"
+      ],
       "output_schema": "schemas/priority.json",
-      "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1
+      "retries": 1,
+      "on_exhaust": "proceed-with-gap",
+      "max_rounds": 1
     },
     {
-      "id": "route", "agent": "router", "model": "haiku", "decision_mechanism": "single",
+      "id": "route",
+      "agent": "router",
+      "model": "haiku",
+      "decision_mechanism": "single",
       "mechanism_params": {},
-      "inputs": ["_workspace/01_category/classification.json", "_workspace/02_priority/priority.json"],
-      "outputs": ["_workspace/03_route/routing.json"],
-      "write_paths": ["_workspace/03_route/"],
+      "inputs": [
+        "_workspace/01_category/classification.json",
+        "_workspace/02_priority/priority.json"
+      ],
+      "outputs": [
+        "_workspace/03_route/routing.json"
+      ],
+      "write_paths": [
+        "_workspace/03_route/"
+      ],
       "output_schema": "schemas/routing.json",
-      "retries": 0, "on_exhaust": "escalate", "max_rounds": 1
+      "retries": 0,
+      "on_exhaust": "escalate",
+      "max_rounds": 1
     }
   ],
   "edges": [
-    { "from": "classify_category", "to": "route" },
-    { "from": "classify_priority", "to": "route" }
+    {
+      "from": "classify_category",
+      "to": "route"
+    },
+    {
+      "from": "classify_priority",
+      "to": "route"
+    }
   ]
 }

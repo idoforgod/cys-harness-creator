@@ -145,6 +145,37 @@ def validate(harness_dir):
             if fm.get("model") and n.get("model") and fm["model"] != n["model"]:
                 r.err("TIER_MISMATCH", "node '%s'.model=%s != agent frontmatter model=%s"
                       % (nid, n["model"], fm["model"]), nid)
+        # REVIEW_AGENT_PRESENT (M1): a review node's adversarial agent must have a definition file so
+        # the L2 layer can actually spawn it (genome ships reviewer/fact-checker; this enforces it).
+        rv = n.get("review")
+        if rv and rv.get("agent"):
+            rap = os.path.join(harness_dir, ".claude", "agents", rv["agent"] + ".md")
+            if not os.path.isfile(rap):
+                r.err("REVIEW_AGENT_PRESENT",
+                      "node '%s' review.agent '%s' has no .claude/agents/%s.md (L2 review can't fire)"
+                      % (nid, rv["agent"], rv["agent"]), nid)
+        # SKILL_AUTHORING_CONSISTENCY (M3/locked-5): the hybrid author-or-inline decision is machine-checked.
+        sa = n.get("skill_authoring") or {}
+        if sa.get("mode") == "skill":
+            reason = sa.get("reason")
+            if reason not in ("reuse", "complex", "conditional"):
+                r.err("SKILL_AUTHORING_JUSTIFIED",
+                      "node '%s' skill_authoring.mode='skill' needs reason in {reuse,complex,conditional}" % nid, nid)
+            elif reason == "reuse" and len(sa.get("shared_by") or []) < 2:
+                r.err("SKILL_AUTHORING_JUSTIFIED",
+                      "node '%s' reason='reuse' must list shared_by with >=2 nodes that reuse the skill" % nid, nid)
+            sn = "%s-%s" % ((graph or {}).get("harness_name", ""), nid)
+            sk_md = os.path.join(harness_dir, ".claude", "skills", sn, "SKILL.md")
+            if not os.path.isfile(sk_md):
+                r.err("INLINE_NO_ORPHAN_SKILL",
+                      "node '%s' authors a domain skill but .claude/skills/%s/SKILL.md is missing "
+                      "(run emit_domain_skill.py)" % (nid, sn), nid)
+            # LIFT_UNMEASURED (M3): an authored skill should be lift-measured before it is relied on —
+            # warning until the measurement infra (M7) wires it as a hard build gate.
+            if not os.path.isfile(os.path.join(harness_dir, ".claude", "skills", sn, "lift_verdict.json")):
+                r.warn("LIFT_UNMEASURED",
+                       "node '%s' authors skill '%s' but no lift_verdict.json — measure it (lift_gate) or inline it"
+                       % (nid, sn), nid)
         # V1 model present/valid
         if not n.get("model") or n["model"] not in VALID_TIERS:
             r.err("TIER_MISSING", "node '%s'.model empty/invalid (default would be %s)"
@@ -187,12 +218,85 @@ def validate(harness_dir):
     _doc_drift(harness_dir, r)
 
     # GENOME (AWF DNA graft, D0+D1): inherited-DNA section + L0 security hooks
-    _genome_checks(harness_dir, r)
+    _genome_checks(harness_dir, r, graph)
+
+    # MEASUREMENT_DRIFT: a harness doc must not advertise CYS-WINS unless an evals verdict shows it
+    _measurement_drift(harness_dir, r)
+
+    # AUDIT_VERDICT_PRESENT (M4): if a Phase-0 audit was produced, it must be well-formed (branch in
+    # {new,extend,maintain} + a drift list). Optional — a fresh 'new' build needn't run audit_harness.
+    apath = os.path.join(harness_dir, ".harness", "audit.json")
+    if os.path.isfile(apath):
+        try:
+            au = json.load(open(apath, encoding="utf-8"))
+            if au.get("branch") not in ("new", "extend", "maintain"):
+                r.err("AUDIT_VERDICT_PRESENT",
+                      ".harness/audit.json branch must be new|extend|maintain (got %r)" % au.get("branch"), apath)
+            if not isinstance(au.get("drift"), list):
+                r.err("AUDIT_VERDICT_PRESENT", ".harness/audit.json must carry a 'drift' list", apath)
+        except ValueError:
+            r.err("AUDIT_VERDICT_PRESENT", ".harness/audit.json is not valid JSON", apath)
+
+    # EVOLUTION_LOG_PRESENT (M5): if a change-history log exists, every entry must be a well-formed
+    # routed change (feedback_type + target + change). Append-only living record.
+    cpath = os.path.join(harness_dir, ".harness", "change-history.jsonl")
+    if os.path.isfile(cpath):
+        for i, line in enumerate(open(cpath, encoding="utf-8"), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except ValueError:
+                r.err("EVOLUTION_LOG_PRESENT", "change-history.jsonl line %d is not valid JSON" % i, cpath)
+                break
+            if not all(k in e for k in ("feedback_type", "target", "change")):
+                r.err("EVOLUTION_LOG_PRESENT",
+                      "change-history.jsonl line %d missing feedback_type/target/change" % i, cpath)
+                break
+
+    # MEMORY_STORE_INIT (M6): a genome-inherited harness must have the Tier-II cross-run memory store
+    # seeded (RLM external environment). Gated on settings.json (genome present) so minimal/non-inherited
+    # fixtures are exempt.
+    if os.path.isfile(os.path.join(harness_dir, ".claude", "settings.json")):
+        mem = os.path.join(harness_dir, ".harness", "memory")
+        for rel in ("archive.manifest.json", "domain-knowledge.yaml", os.path.join("runs", "index.jsonl")):
+            if not os.path.isfile(os.path.join(mem, rel)):
+                r.err("MEMORY_STORE_INIT",
+                      ".harness/memory/%s missing (run inherit_genome / _init_memory_store)" % rel, mem)
 
     return r
 
 
-def _genome_checks(harness_dir, r):
+def _measurement_drift(harness_dir, r):
+    """Honesty gate (the +37.5pp lesson): if the harness ships h2h verdicts and NONE is
+    CYS-WINS, no in-harness doc (README / orchestrator SKILL) may advertise 'CYS-WINS'."""
+    edir = os.path.join(harness_dir, "evals")
+    if not os.path.isdir(edir):
+        return
+    verdicts = set()
+    for fn in os.listdir(edir):
+        if fn.endswith(".verdict.json"):
+            try:
+                verdicts.add(json.load(open(os.path.join(edir, fn))).get("verdict"))
+            except (OSError, ValueError):
+                pass
+    if not verdicts or "CYS-WINS" in verdicts:
+        return  # no verdicts, or it genuinely wins -> win claims are allowed
+    docs = [os.path.join(harness_dir, "README.md")]
+    sk = os.path.join(harness_dir, ".claude", "skills")
+    if os.path.isdir(sk):
+        for d in os.scandir(sk):
+            cand = os.path.join(d.path, "SKILL.md")
+            if d.is_dir() and os.path.isfile(cand):
+                docs.append(cand)
+    for d in docs:
+        if os.path.isfile(d) and "CYS-WINS" in open(d, encoding="utf-8").read():
+            r.err("MEASUREMENT_DRIFT", "doc advertises CYS-WINS but no evals/*.verdict.json shows it (%s)"
+                  % os.path.basename(d), d)
+
+
+def _genome_checks(harness_dir, r, graph=None):
     """Verify the FULL AgenticWorkflow genome was inherited (전수/유전), not a subset.
     W1_GENOME: harness.md embeds inherited DNA. GENOME_PRESENT: the load-bearing
     machinery files transplanted. HOOK_REGISTERED: settings.json wires the AWF hooks."""
@@ -216,33 +320,140 @@ def _genome_checks(harness_dir, r):
     for rel in must_exist:
         if not os.path.isfile(os.path.join(harness_dir, rel)):
             r.err("GENOME_PRESENT", "genome machinery missing (run emit/inherit_genome): %s" % rel, rel)
-    # RUNTIME_DECLARED: the two inherited runtimes must be disambiguated (canonical = workflow.js)
+    # RUNTIME_DECLARED: dual-accept by execution_mode (CD-6).
+    #   execution_mode='workflow'        -> canonical 'cys-mode-a' (Mode-A workflow.js)
+    #   execution_mode=agent|team|hybrid -> canonical '<harness>-orchestrator' (primitive substrate)
+    mode = (graph or {}).get("execution_mode", "agent")  # M0: primitive substrate is the product default
+    # WORKFLOW_RETIRED (M0/locked-3): Mode-A workflow.js is retired from the PRODUCT. A produced harness
+    # must run 100% on Claude Code primitives (agent/team/hybrid). 'workflow' survives only as
+    # factory-internal measurement tooling, never as a shipped harness.
+    if mode == "workflow":
+        r.err("WORKFLOW_RETIRED",
+              "execution_mode='workflow' is retired from the product — use agent/team/hybrid "
+              "(workflow.js survives only as factory-internal measurement tooling)",
+              os.path.join(harness_dir, ".harness", "graph.json"))
+    _wjs = os.path.join(harness_dir, ".harness", "workflow.js")
+    if os.path.isfile(_wjs):
+        r.err("WORKFLOW_RETIRED",
+              "produced harness ships .harness/workflow.js (retired non-primitive runtime) — remove it; "
+              "the orchestrator skill is the only execution runtime", _wjs)
+    hname = (graph or {}).get("harness_name", "")
+    expected_canonical = "cys-mode-a" if mode == "workflow" else ("%s-orchestrator" % hname)
     rp = os.path.join(harness_dir, ".harness", "RUNTIME.json")
     if not os.path.isfile(rp):
         r.err("RUNTIME_DECLARED", "no .harness/RUNTIME.json — two-runtime ambiguity unresolved (run inherit_genome)", rp)
     else:
         try:
             rt = json.load(open(rp))
-            if rt.get("canonical_runtime") != "cys-mode-a":
-                r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime must be 'cys-mode-a'", rp)
-            names = {x.get("name") for x in rt.get("runtimes", [])}
-            if "awf-prompt-runner" not in names:
-                r.warn("RUNTIME_DECLARED", "RUNTIME.json should declare the inherited 'awf-prompt-runner' alternative", rp)
+            if rt.get("canonical_runtime") != expected_canonical:
+                r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime='%s' but execution_mode='%s' expects '%s'"
+                      % (rt.get("canonical_runtime"), mode, expected_canonical), rp)
+            # RUNTIME_MANIFEST_CLEAN (M0/locked-3): a primitive harness advertises exactly ONE
+            # execution runtime — the orchestrator skill. The retired workflow.js and the inherited
+            # prompt-runner subprocess must NOT be listed as runnable runtimes in a produced child.
+            if mode != "workflow":
+                bad = [x.get("name") for x in rt.get("runtimes", [])
+                       if "workflow.js" in (x.get("entrypoint") or "")
+                       or "prompt-runner" in (x.get("entrypoint") or "")
+                       or x.get("name") in ("cys-mode-a-workflow", "awf-prompt-runner")]
+                if bad:
+                    r.err("RUNTIME_MANIFEST_CLEAN",
+                          "produced harness RUNTIME.json advertises a non-primitive runtime: %s "
+                          "(workflow.js/prompt-runner are retired from the product)" % ", ".join(bad), rp)
         except ValueError:
             r.err("RUNTIME_DECLARED", "RUNTIME.json is not valid JSON", rp)
-    # HOOK_REGISTERED: AWF hook wiring present in settings.json
+    # HOOK_REGISTERED: AWF security/context hooks wired; primitive substrate also wires budget_block.
     sp = os.path.join(harness_dir, ".claude", "settings.json")
+    needed_hooks = ["block_destructive_commands.py", "output_secret_filter.py",
+                    "security_sensitive_file_guard.py", "context_guard.py", "save_context.py"]
+    if mode != "workflow":
+        # M0d: the primitive substrate must wire the budget ceiling AND the halves that make it + the
+        # QA gates actually fire — else DNA stays dormant (the exact gap the audit flagged).
+        needed_hooks += ["budget_block.py", "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
     if os.path.isfile(sp):
         try:
             cmds = json.dumps(json.load(open(sp)).get("hooks", {}))
-            for needed in ("block_destructive_commands.py", "output_secret_filter.py",
-                           "security_sensitive_file_guard.py", "context_guard.py"):
+            for needed in needed_hooks:
                 if needed not in cmds:
                     r.err("HOOK_REGISTERED", "settings.json does not wire %s" % needed, sp)
         except ValueError:
             r.err("HOOK_REGISTERED", "settings.json is not valid JSON", sp)
     else:
         r.err("HOOK_REGISTERED", "no .claude/settings.json (genome not inherited)", sp)
+    # GRAPH_SKILL_CONSISTENCY: (primitive substrate) the orchestrator SKILL must name every node id
+    # — the prose-vs-graph drift surface idoforgod cannot detect.
+    if mode != "workflow" and graph:
+        sk = os.path.join(harness_dir, ".claude", "skills", "%s-orchestrator" % hname, "SKILL.md")
+        if not os.path.isfile(sk):
+            r.err("GRAPH_SKILL_CONSISTENCY", "no orchestrator SKILL for primitive mode: %s" % sk, sk)
+        else:
+            txt = open(sk, encoding="utf-8").read()
+            missing = [n["id"] for n in graph.get("nodes", []) if n["id"] not in txt]
+            if missing:
+                r.err("GRAPH_SKILL_CONSISTENCY", "orchestrator SKILL omits graph nodes: %s" % ", ".join(missing), sk)
+            # TEAM_EMIT_PRESENT (M0d): execution_mode='team' must emit the ACTUAL team primitives, not
+            # the Agent() fan of agent mode (the verified 'team emit byte-identical to agent' vaporware).
+            if mode == "team":
+                need = [p for p in ("TeamCreate", "TaskCreate", "TeamDelete") if p not in txt]
+                if need:
+                    r.err("TEAM_EMIT_PRESENT",
+                          "execution_mode='team' but orchestrator SKILL never emits: %s "
+                          "(team mode must drive real team primitives, not Agent() fan)" % ", ".join(need), sk)
+            # CONTEXT_PRESERVATION_FIRSTCLASS (M1): long-term memory must be a declared operating cycle,
+            # not the old 1-line gap — RLM knowledge-index recall + latest.md restore named explicitly.
+            mem_markers = ("메모리 운영", "knowledge-index", "latest.md")
+            miss = [m for m in mem_markers if m not in txt]
+            if miss:
+                r.err("CONTEXT_PRESERVATION_FIRSTCLASS",
+                      "orchestrator SKILL lacks a first-class memory operating section (missing: %s)"
+                      % ", ".join(miss), sk)
+            # ALL_PRIMITIVES_PRESENT (M2/A2 floor): a built harness must instantiate ALL 6 primitive
+            # types — orchestrator + agents + hooks + skills (structural, checked elsewhere) AND BOTH
+            # Sub-agents (Agent) and Agent Teams (TeamCreate) in the orchestrator. agent-only (no team)
+            # is not A2-compliant; use team/hybrid (with graceful degrade to sub-agents).
+            # Use the CALL form `TeamCreate(` / `Agent(` — the description line always mentions the words
+            # "Agent/TeamCreate", so word-presence would be vacuous; an actual spawn uses the paren form.
+            prim_missing = []
+            if "Agent(" not in txt:
+                prim_missing.append("Sub-agents (Agent)")
+            if "TeamCreate(" not in txt:
+                prim_missing.append("Agent Teams (TeamCreate)")
+            if prim_missing:
+                r.err("ALL_PRIMITIVES_PRESENT",
+                      "built harness does not instantiate all 6 primitives — orchestrator SKILL lacks: %s "
+                      "(A2: use team/hybrid so both teams and sub-agents are present)" % ", ".join(prim_missing), sk)
+            # TEAM_GRACEFUL_DEGRADE (M2/A2-iii): if teams are used, the orchestrator must document the
+            # Sub-agent fallback for when CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS is absent (never hard-break).
+            if "TeamCreate(" in txt and "degrade" not in txt.lower() and "강등" not in txt:
+                r.err("TEAM_GRACEFUL_DEGRADE",
+                      "harness uses Agent Teams but documents no Sub-agent fallback for when the "
+                      "experimental Agent-Teams flag is absent (A2-iii)", sk)
+            # TOPOLOGY_PRIMITIVE_CONSISTENCY (M2-2): a declared topology must actually emit its recipe,
+            # and team-requiring topologies must emit a team. (pipeline/dispatch/producer-reviewer have
+            # no addendum requirement; the 4 below are first-class emit targets.)
+            topo = (graph or {}).get("topology")
+            topo_hdr = {"fan-out-fan-in": "### 토폴로지: fan-out/fan-in",
+                        "supervisor": "### 토폴로지: supervisor",
+                        "expert-pool": "### 토폴로지: expert-pool",
+                        "hierarchical": "### 토폴로지: hierarchical"}.get(topo)
+            if topo_hdr and topo_hdr not in txt:
+                r.err("TOPOLOGY_PRIMITIVE_CONSISTENCY",
+                      "topology='%s' declared but its emit recipe is absent from the orchestrator SKILL" % topo, sk)
+            if topo in ("fan-out-fan-in", "supervisor", "hierarchical") and "TeamCreate(" not in txt:
+                r.err("TOPOLOGY_PRIMITIVE_CONSISTENCY",
+                      "topology='%s' needs an Agent Team but execution_mode emits no TeamCreate( "
+                      "(set execution_mode=team/hybrid)" % topo, sk)
+            # EVOLUTION_WIRED (M5): the orchestrator must carry the Phase-7 evolution loop (feedback
+            # routing + change-history) so the harness is a living system, not a one-shot artifact.
+            if "진화" not in txt or "evolve_harness" not in txt:
+                r.err("EVOLUTION_WIRED",
+                      "orchestrator SKILL lacks the Phase-7 evolution section (진화 + evolve_harness)", sk)
+            # MEMORY_SKILL_SECTION (M6): the orchestrator must declare the Tier-II cross-run memory
+            # recall+write recipe (RLM — Grep the index, never bulk-load).
+            if "교차-실행 도메인 메모리" not in txt or "runs/index.jsonl" not in txt:
+                r.err("MEMORY_SKILL_SECTION",
+                      "orchestrator SKILL lacks the Tier-II cross-run memory recipe "
+                      "(교차-실행 도메인 메모리 + runs/index.jsonl)", sk)
 
 
 def _count_phases(text):

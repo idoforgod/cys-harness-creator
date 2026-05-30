@@ -34,7 +34,7 @@ CYS는 `graph.json` 계약(JSON Schema 2020-12로 고정) → **결정적 Python
 | **규칙 강제** | 산문 체크리스트("~하라", 14개 항목). 사람/LLM이 안 지켜도 막을 장치 없음 | `validate_harness.py` 17개 정적 검사가 빌드 게이트. exit 1=차단. 스키마+엣지+사이클+에이전트존재+tier+경로안전+게놈 | ● CYS | validate 3예제 PASS(0 err); 원본 감사 "no tests" 자인 |
 | **비용 거버넌스** | 없음. 전 에이전트 `model:"opus"` 고정 권장(SKILL.md L87) → 구조적 과금 | `warrant.py` cost_band(LOW/MED/HIGH+USD), `model-tier-policy.js` 역할기반 tier(haiku/sonnet/opus), budget guard `ensure()` 인라인 | ● CYS | warrant cost_band 검증(72K=$0.336); V2: 순수검색에 opus 경고 |
 | **조정 메커니즘** | 6 패턴 *산문 설명* + 에이전트팀 권장. 합의/투표/심판 로직은 글로만 | 4개 *코드 생성* 메커니즘: single / majority-vote(n,quorum,tieBreak) / debate-with-judge / reflect-then-revise. 전부 라이브 테스트 | ● CYS | majority-vote `reduceMajority` 결정적; 원본은 실행 로직 미생성 |
-| **측정 / 벤치마크** | "With vs Without" 비교를 *방법론으로 서술*(skill-testing-guide.md). 실행 코드·실측 결과 repo 내 0건 | `lift_gate.py`(블라인드 채점기)+`h2h_suite.workflow.js`(n-run median/variance/verdict). 실측 산출 | ● CYS | 원본은 "방법론"만; CYS는 라이브 +38pp/lift 1.00 실측 |
+| **측정 / 벤치마크** | "With vs Without" 비교를 *방법론으로 서술*(skill-testing-guide.md). 실행 코드·실측 결과 repo 내 0건 | `lift_gate.py`(블라인드 채점기)+`h2h_suite.workflow.js`(n-run median/variance/verdict). 실측 산출 | ● CYS | 원본은 "방법론"만; CYS는 실행코드 + stamped verdict 보유(현재 측정: n=1 BASELINE-WINS −16.67pp — 정직 기록). 우위는 *측정 인프라*(블라인드 채점·drift 게이트)이지 측정된 성능승리 아님 |
 | **생애주기 / 드리프트** | Phase 0 감사 + Phase 7 진화 + CLAUDE.md 변경이력 테이블. **이 축은 원본이 명시적·성숙** | 게놈 재상속 idempotency, 문서 드리프트 검사(validate). 단 "운영/유지보수 워크플로우" 같은 진화 절차 서술은 빈약 | ○ 원본 | 원본 SKILL.md Phase 0/7-5 상세; CYS는 빌드 일관성에 집중, 진화 UX 약함 |
 | **보안** | 없음. 보안 hook 개념 부재 | L0 보안 hook 상속·실행: `block_destructive`(43/43 통과), `output_secret_filter`(44/44 통과) — 자식 하네스에서 실제 RUN | ● CYS | git-force 차단·secret 탐지 라이브 확인; 원본 무 |
 | **컨텍스트 보존** | Progressive Disclosure(metadata/본문/references 3단 로딩) — *문서 작성 기법*으로서 우수 | `_context_lib.py` 기반 SessionStart/End 컨텍스트 복원·스냅샷 hook 상속(런타임). 다만 문서 작성 기법으로서의 PD는 미내장 | ≈ 대등 | 서로 다른 층위: 원본=저작 기법, CYS=런타임 메커니즘 |
@@ -59,20 +59,29 @@ CYS 우세축은 모두 **시스템의 핵심 역량**(런타임·강제·비용
   - 검증 상태: **저자 자가측정(author-measured), 제3자 재현 미완(pending).** 원본 README가 직접 이렇게 고지함("n=15, author-measured A/B, third-party replications pending").
   - 중대 주의: 이 +60%는 **원본 메타-스킬 자체가 아니라 "claude-code-harness"라는 별개 repo**의 사전구성 효과를 측정한 것이다. 즉 revfactory/harness가 *생성한* 하네스의 성능 실측이 **이 repo 안에는 0건**이다. 원본의 `skills/harness/`는 측정 코드를 포함하지 않고, 측정은 순전히 산문 방법론(`skill-testing-guide.md`)으로만 존재한다.
 
-### CYS 측 (이번 세션 라이브 실측, "measured"로 인용)
-- **Head-to-head (deep-research, 실제 웹 리서치, 블라인드 채점):** C2(CYS 파이프라인)=0.875 vs C3(무하네스 단일 opus)=0.5 → **+38pp, "CYS WINS"** (≥15pp 마진).
-- **lift gate (라이브, 독립 블라인드 채점기):** with-skill=1.00 vs baseline=0.00 → **lift 1.00, REGISTER.**
-- **resume (resumeFromRunId):** **0 토큰 / 3ms / 100% 캐시 히트** — 결정성 실증.
-- **budget guard 단위테스트 7/7**, emit된 workflow.js가 **3토폴로지×4메커니즘 전부 유효.**
-- **게놈 상속:** 자식에 228파일 전수, 상속된 hook이 자식에서 **실제 RUN**(block_destructive가 git-force 차단, output_secret_filter가 secret 탐지). verify-only는 "기능적(imports OK)".
+### CYS 측 (정직 기록 — 측정된 성능 우위는 없음)
+> ⚠️ **기준 변경 + 정정.** 평가 기준은 더 이상 "성능 우위"가 아니라 **idoforgod feature parity**다. 그리고
+> 과거 이 절이 인용하던 "+38pp / lift 1.00"은 **hand-authored HYPOTHESIS fixture였고 실측과 모순되어 폐기됐다.**
+> 아래는 인프라/역량의 사실 기록이며 성능 승리 주장이 아니다.
+- **Head-to-head (deep-research, 블라인드 채점):** 유일 stamped verdict = C2(CYS)=0.833 vs C3(무하네스 단일
+  opus)=1.0 → **−16.67pp, BASELINE-WINS** (n=1, Mode-A 측정; `evals/deep-research.verdict.json`). 즉 현재
+  데이터로는 **무하네스 opus가 이긴다(정직 기록).**
+- **lift gate:** 인프라(`lift_gate.py` 블라인드 채점기, threshold 0.2)는 존재하나 **stamped lift verdict는
+  미보유** — 8 use case lift 측정은 M7에서 수행한다.
+- **budget·emit:** budget interlock(spawn_counter→budget_block)이 실제로 발화(exit-2)함을 단위/통합 검증, emit된
+  오케스트레이터가 3토폴로지 전부 유효.
+- **게놈 상속:** 자식에 228파일(git-tracked) 전수, 상속된 hook이 자식에서 **실제 RUN**(block_destructive가
+  git-force 차단, output_secret_filter가 secret 탐지). verify는 py_compile + import-spine "기능적".
+- **우위의 성격:** CYS의 차별점은 *측정된 성능*이 아니라 **빌드타임 머신계약 + 강제 게이트 + 비용거버넌스 +
+  게놈 발화**라는 *역량(capability)*이다.
 
 ### 성능 판정의 핵심
 | | 측정 주체 | 측정 대상 | 검증 등급 |
 |---|---|---|
 | 원본 +60% | 저자 본인 | **별개 repo**(claude-code-harness) | author-measured, 미재현 |
-| CYS +38pp | 독립 블라인드 채점기(opus) | **CYS가 emit한 하네스 자체** | live-measured, 본 세션 산출 |
+| CYS n=1 −16.67pp (BASELINE-WINS) | 독립 블라인드 채점기(opus) | **CYS가 emit한 하네스 자체** | stamped(정직 기록); 우위는 인프라이지 측정된 성능승리 아님 |
 
-**두 수치는 직접 비교 불가**(태스크 도메인·채점 방식·n 상이)지만, 방법론적 엄밀성에서 차이가 분명하다: 원본은 *측정 대상이 repo 밖이고 자가측정*, CYS는 *측정 대상이 자기 산출물이고 블라인드 독립 채점*. 단, CYS의 +38pp/lift 1.00은 **n이 작은(deep-research 1도메인, fixture는 "HYPOTHESIS-grade 재측정 대기"로 표기됨)** 1차 결과임을 정직하게 병기해야 한다 — 즉 CYS도 아직 대규모 다도메인 재현은 미완이다. 양측 다 "광범위 재현"은 미달이나, CYS는 **재측정 도구(`h2h_aggregate.py`)를 repo에 내장**하고 있어 재현 경로가 코드로 존재한다(원본은 방법론 글로만 존재).
+**방법론적 엄밀성의 차이는 유효하다**: 원본은 *측정 대상이 repo 밖이고 자가측정*, CYS는 *측정 대상이 자기 산출물이고 블라인드 독립 채점 + 재측정 도구(`h2h_aggregate.py`)·MEASUREMENT_DRIFT 정직성 게이트를 repo에 내장*. **그러나 현재 유일 stamped 결과는 CYS의 패배(−16.67pp, n=1)**이고, 평가 기준도 성능우위가 아니라 **idoforgod feature parity**다. 따라서 CYS의 우월성은 *측정된 성능*이 아니라 *역량·인프라·정직성 규율*에 한정되며, 성능 비교는 M7의 n≥5 다도메인 재측정 전까지 미결이다(원본은 그 재측정 경로조차 산문으로만 존재).
 
 ---
 
@@ -97,7 +106,7 @@ CYS 우세축은 모두 **시스템의 핵심 역량**(런타임·강제·비용
 
 - 원본은 **L3 메타-스킬(프롬프트 스캐폴더)** — "에이전트 팀을 어떻게 설계할지 알려주는 잘 쓰인 매뉴얼"이다. 그 층위에서 원본은 성숙하다(릴리스·i18n·물량·생애주기 서술). 그러나 원본 자신의 감사가 인정하듯 **런타임·강제·테스트·측정 코드가 repo 안에 0개**이며, 산출물 품질은 매 실행 Claude 판단에 분산된다. 원본이 내세우는 +60%조차 **별개 repo의 자가측정**이다.
 
-- CYS는 **실행 가능한 컴파일러 팩토리(deterministic runtime + machine-checked gates + cost governance + measured advantage + FULL AWF genome inheritance)**다. 시스템의 *기능적 본질*을 이루는 7개 핵심 축(런타임·강제·비용·조정·측정·보안·게놈)을 전부 코드로 소유하며, 그 우월성을 **본 세션에서 블라인드 독립 채점으로 실측(+38pp / lift 1.00 / 0-토큰 resume)**했다. 특히 **228파일 게놈 전수**는 원본에 대응물이 전무한 절대적 차별점이다.
+- CYS는 **실행 가능한 컴파일러 팩토리(deterministic runtime + machine-checked gates + cost governance + measured advantage + FULL AWF genome inheritance)**다. 시스템의 *기능적 본질*을 이루는 7개 핵심 축(런타임·강제·비용·조정·측정·보안·게놈)을 전부 코드로 소유한다. 이 우월성은 *역량(capability)* 차원이다 — 현재 유일 stamped 측정은 **n=1 BASELINE-WINS −16.67pp(정직 기록; 무하네스 opus가 이김)**이며, 평가 기준은 idoforgod feature parity다(측정된 성능승리 주장 아님). 특히 **228파일 게놈 전수**는 원본에 대응물이 전무한 절대적 차별점이다.
 
 - **단, 이 판정은 "능력(capability)" 기준이다.** "제품 성숙도(product readiness)" 기준으로는 원본이 배포·물량·다국어·운영연륜에서 앞선다. CYS가 능가하지 *못하는* 5개 축은 모두 **포장·유통·운영 UX**이지 **엔진의 본질이 아니다** — 즉 메우기 쉬운 격차(릴리스 태깅, 플러그인 매니페스트, 다국어 README, 예제 확장)인 반면, 원본이 CYS를 따라잡으려면 **컴파일러·게이트·측정·게놈 인프라를 처음부터 구축**해야 한다(따라잡기 난이도 비대칭).
 

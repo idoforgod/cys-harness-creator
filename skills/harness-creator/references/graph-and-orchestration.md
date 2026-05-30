@@ -2,6 +2,8 @@
 
 # graph.json과 오케스트레이션
 
+> ⚠️ **PIVOT (2026-05-29)**: 오케스트레이터의 canonical 산출물은 이제 **emit된 오케스트레이터 SKILL.md**(`emit_orchestrator.py`, Claude Code 프리미티브 Agent/TeamCreate 구동)다. `workflow.js`(`emit_workflow.py`)는 `execution_mode='workflow'`(byte-결정론 replay) **선택지**로 잔존한다. 이 문서의 "오케스트레이터 = workflow.js" 서술은 그 선택지에 한정해 읽고, 기본은 프리미티브 SKILL로 치환한다. 구현 현황은 `IMPLEMENTATION-STATUS.md` 우선, 근거는 `design/pivot-to-claude-primitives-strategy.md`.
+
 > 출처: 원본 `orchestrator-template.md`을 CYS 패러다임으로 적응. 원본의 "오케스트레이터 = 프롬프트로 작성하는 상위 스킬(팀 기본)" 모델을 "오케스트레이터 = `graph.json`이 컴파일된 `workflow.js`(Mode A 결정론 런타임 기본)"로 전환했다.
 
 ---
@@ -23,23 +25,23 @@
 
 ---
 
-## 1. 핵심 전환: 오케스트레이터는 emit된 workflow.js다
+## 1. 핵심 전환: graph.json 계약 → emit된 오케스트레이터 SKILL
 
-원본은 오케스트레이터를 **프롬프트로 직접 쓰는 상위 스킬**로 보았다 — Phase별 산문, `TeamCreate`/`SendMessage`/`TaskCreate` 호출, "팀이 기본". CYS에서는 그 모델을 버린다.
+원본은 오케스트레이터를 **프롬프트로 직접 쓰는 상위 스킬**로 보았다 — Phase별 산문, `TeamCreate`/`SendMessage`/`TaskCreate` 호출, "팀이 기본". CYS는 그 *산문 직접저작*을 버리되, idoforgod의 *프리미티브 실행모델*(Agent/TeamCreate/SendMessage)은 채택한다.
 
-**CYS 계약:** 모든 하네스는 하나의 불변 `graph.json`(JSON-Schema로 검증되는 척추)이다. 메타스킬이 그것을 저작하고, 도구가 그것을 컴파일·검증한다. 사람이 산문으로 오케스트레이션 로직을 쓰지 않는다. **graph.json을 저작하면, `emit_workflow.py`가 그것을 `.harness/workflow.js`(결정론 Mode A 런타임)로 컴파일한다. 그 workflow.js가 바로 오케스트레이터다.**
+**CYS 계약:** 모든 하네스는 하나의 불변 `graph.json`(JSON-Schema로 검증되는 척추)이다. 메타스킬이 그것을 저작하고, 도구가 그것을 emit·검증한다. 사람이 산문으로 오케스트레이션 로직을 쓰지 않는다. **graph.json을 저작하면, `emit_orchestrator.py`가 그것을 `.claude/skills/<name>-orchestrator/SKILL.md`(프리미티브 오케스트레이터) + 노드별 `.claude/agents/*.md`(런타임 바인딩 frontmatter)로 emit한다. 그 emit된 SKILL이 바로 오케스트레이터다.** (`execution_mode='workflow'`인 좁은 경우에만 `emit_workflow.py`가 `.harness/workflow.js`로 컴파일.)
 
-| 원본 (team-vs-subagent + .claude 직접) | CYS (graph.json 계약) |
+| 원본 (team-vs-subagent + 산문 직접) | CYS (graph.json 계약, 프리미티브 기질) |
 |---|---|
-| 오케스트레이터 = 사람이 쓰는 산문 스킬 | 오케스트레이터 = graph.json이 emit한 workflow.js |
-| 팀 모드가 기본 (2명 이상 협업 시 최우선) | Mode A workflow가 기본; team은 실시간 comms 필수 시 예외 |
-| `TeamCreate`/`TaskCreate`/`depends_on`/`SendMessage` | `graph.nodes[]` + `edges[]`(ordering only) → `agent()`/`parallel()`/`pipeline()` |
-| 6개 패턴(fan-out·expert-pool·hierarchical…)을 하나의 축에 혼재 | 3 topology(데이터흐름) × 4 mechanism(합의이론) — **직교 두 축** |
-| "모든 에이전트 opus" | role→tier 정책(gather=haiku, voter=sonnet, judge=opus) |
-| 산문 권고 규칙 | `validate_harness.py` 머신체크 세트 게이트 |
-| 에러 매트릭스(리더가 감지·재시작) | node별 `retries` + `on_exhaust` 선언 |
+| 오케스트레이터 = 사람이 쓰는 산문 스킬 | 오케스트레이터 = graph.json이 emit한 SKILL.md(검증·재현 가능) |
+| 팀 모드가 기본 (2명 이상 협업 시 최우선) | `agent` 모드 기본(순차/병렬 sub-spawn); `team`은 실시간 comms 필수 시(P5 입증 후) |
+| `TeamCreate`/`TaskCreate`/`depends_on`/`SendMessage` (산문) | `graph.nodes[]` + `edges[]`(ordering) → emit이 Agent/TeamCreate 호출로 prose 생성 |
+| 6개 패턴을 하나의 축에 혼재 | 3 topology(데이터흐름) × 4 mechanism(합의이론) — **직교 두 축** |
+| "모든 에이전트 opus" | role→tier 정책(gather=haiku, voter=sonnet, judge=opus) — Agent가 **런타임 강제** |
+| 산문 권고 규칙 | `validate_harness.py` 머신체크 + 런타임 `gate_or_block.py` exit-2 인터록 |
+| 에러 매트릭스(리더가 감지·재시작) | node별 `retries` + `on_exhaust` + abductive diagnosis |
 
-**왜 이렇게 하는가 (always가 아닌 이유, 즉 team이 기본이 아닌 이유):** 팀(`TeamCreate`)은 실시간 inter-agent 통신을 주지만 **결정론적으로 스케줄될 수 없다**(플랫폼 한계 — 메시지 타이밍·claim 순서가 비결정적). 결정론 부재는 곧 재개 불가능·재현 불가능·예산 hard-ceiling 강제 불가를 뜻한다. 따라서 CYS는 비결정성을 비용으로 인식하고, 그 비용을 지불할 가치(실시간 협상)가 명백할 때만 Mode B로 빠진다. 그 외 모든 경우 — 즉 거의 전부 — graph.json → workflow.js가 THE 경로다.
+**왜 프리미티브가 기본인가:** Mode-A(`workflow.js`)는 byte-결정론·재개를 주지만, 그 기질에서는 상속된 AWF 게놈 전체(hook·L0-L2·SOT·적대적 리뷰)가 **휴면**한다(두 실행평면 직교 — 실측 확인). 프리미티브 기질(라이브 호스트 세션)에서만 게놈이 발화하고 커스텀 agent가 resolve된다. 따라서 CYS는 결정론 replay를 *비용*으로 인식하고, 그 비용을 지불할 가치(byte-exact 재현)가 명백한 좁은 경우만 `workflow`로 빠진다. 그 외 거의 전부 — graph.json → emit된 오케스트레이터 SKILL이 THE 경로다. 단 `team`은 라이브 입증(P5) 전까지 `agent` 아래의 opt-in이다.
 
 > **상속(genome) 맥락:** 생성된 모든 하네스는 `inherit_genome.py`로 AgenticWorkflow 전체 머신(228 파일: 컨텍스트 보존 hook, 4계층 품질 게이트, 보안 hook, 에이전트·스킬·프롬프트 라이브러리)을 **전수 상속**한다. 즉 자식 하네스는 이미 풍부한 운영 후반부(back-half)를 갖고 태어난다. 이 문서는 그 후반부가 아니라, 도메인 → `graph.json` + agent + schema로 가는 **전반부 설계(front-half)**를 다룬다. 오케스트레이션을 "어떻게 코딩하느냐"가 아니라 "어떤 그래프를 저작하면 그것이 원하는 오케스트레이터로 컴파일되느냐"의 문제로 본다.
 

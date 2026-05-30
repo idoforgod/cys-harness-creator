@@ -219,7 +219,40 @@ def run_tests():
     return failed == 0
 
 
+def _hook_main():
+    """PreToolUse(Agent|Task) hook entry: read the spawn payload from stdin, resolve the
+    fork rule, log it. CYS R3 fix — previously __main__ ignored stdin and only ran tests,
+    so the hook was a no-op. Normalizes the BARE subagent_type (e.g. 'reviewer') to the
+    '@'-prefixed categorization key. Advisory by default (exit 0); set
+    CYS_PRESUBAGENT_BLOCK_UNKNOWN=1 to hard-block (exit 2) unregistered agents — only safe
+    once a categorization.yaml entry is auto-emitted per harness node (else it self-blocks)."""
+    try:
+        raw = sys.stdin.read()
+    except Exception:
+        return 0
+    if not raw.strip():
+        return 0
+    try:
+        data = json.loads(raw)
+    except Exception:
+        return 0
+    ti = data.get("tool_input", {}) or {}
+    name = ti.get("subagent_type") or ti.get("subagentType") or ti.get("agent_type") or ""
+    if not name:
+        return 0  # not a sub-agent spawn payload
+    key = name if name.startswith("@") else "@" + name  # normalize bare -> @key
+    rule = get_fork_rule(key)
+    if rule == "unknown" and os.environ.get("CYS_PRESUBAGENT_BLOCK_UNKNOWN") == "1":
+        print("pre_subagent: agent=%s rule=unknown — BLOCKED (register in "
+              ".claude/config/categorization.yaml)" % name, file=sys.stderr)
+        return 2
+    print("pre_subagent: agent=%s rule=%s" % (name, rule), file=sys.stderr)
+    return 0
+
+
 if __name__ == "__main__":
-    # Run tests if script is invoked directly
-    success = run_tests()
-    sys.exit(0 if success else 1)
+    # --selftest or interactive (no piped stdin) -> run the test suite (back-compat).
+    # Piped stdin (the real PreToolUse hook path) -> resolve+log the spawn (R3 fix).
+    if "--selftest" in sys.argv or sys.stdin.isatty():
+        sys.exit(0 if run_tests() else 1)
+    sys.exit(_hook_main())

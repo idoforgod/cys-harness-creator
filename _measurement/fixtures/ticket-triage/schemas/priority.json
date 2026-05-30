@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "priority.json",
+  "title": "Priority",
+  "description": "Priority vote produced by one prioritizer ballot and the majority-vote winner of the classify_priority node. tie_break=first picks the lowest-index ballot on ties. Matches the inlined S.classify_priority_schema table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["priority", "confidence", "rationale"],
+  "properties": {
+    "priority": {
+      "type": "string",
+      "description": "Severity/urgency level for the ticket.",
+      "enum": ["P0", "P1", "P2", "P3"]
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "Confidence in the chosen priority, 0..1. Used by tie_break=highest-confidence when configured."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "One sentence justifying the priority (impact + urgency signals) from the ticket text."
+    }
+  }
+}

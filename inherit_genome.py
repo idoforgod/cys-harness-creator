@@ -41,33 +41,33 @@ from atomic_write import atomic_write  # noqa: E402
 
 _RUNTIME_DIRS = [".claude/context-snapshots", ".claude/agent-memory", "pacs-logs", "verification-logs"]
 _CYS_LOG_HOOK = "cys_log_tokens.py"
+# CYS-specific hooks installed alongside the AWF genome (templates/hooks -> child scripts dir).
+# M0d adds the three that make DNA FIRE instead of lie dormant: spawn_counter (increments the budget
+# ceiling counter), sot_init (instantiates the SOT), qa_gate_runner (fires L0-L2 via gate_or_block).
+_CYS_HOOKS = ["cys_log_tokens.py", "gate_or_block.py", "budget_block.py",
+              "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
 _CLAUDE_PTR = """
 
 ---
 
 ## CYS Harness Engine (inherited alongside the AgenticWorkflow genome)
 
-This harness carries the FULL AgenticWorkflow genome above AND a CYS deterministic
-Mode-A engine. The two are complementary:
-- **AWF genome** (this file + `.claude/`, `docs/`, `prompt-runner/`): operating constitution,
-  context-preservation hooks, 4-layer quality gates, security, agents, skills.
-- **CYS engine** (`.harness/`): `graph.json` (immutable contract) -> `workflow.js`
-  (deterministic Workflow runtime, budget ceiling + resume), validated by
+This harness carries the FULL AgenticWorkflow genome above AND the CYS machine-checked contract:
+- **AWF genome** (this file + `.claude/`, `docs/`): operating constitution, context-preservation +
+  long-term memory hooks, 4-layer quality gates, security, adversarial-review agents, skills.
+- **CYS contract** (`.harness/`): `graph.json` (immutable, machine-checked), validated by
   `validate_harness.py`, cost-gated by `warrant.py`, measured by `lift_gate`/`h2h`.
 
-### Runtime routing — ONE canonical, no ambiguity (see `.harness/RUNTIME.json`)
-This harness inherits TWO runtimes. They never run the same task and do not call each other:
-- **CANONICAL = CYS Mode-A `.harness/workflow.js`** — THE way to run THIS harness. It is the
-  only runtime wired to `graph.json`. Deterministic, budget-gated, resume-safe, tool-driven.
-- **ALTERNATIVE (inherited) = `prompt-runner/run.py`** — AWF's general `claude -p` batch engine.
-  NOT wired to this harness's `graph.json`; it is inherited *capability*, available for ad-hoc
-  long / human-in-the-loop / rate-limit-exposed batch work — NOT a second way to run this graph.
+### Runtime — ONE runtime, 100% Claude Code primitives (see `.harness/RUNTIME.json`)
+This harness runs as a **live `claude` session** driven by the orchestrator skill in `.claude/skills/`,
+which delegates ALL work to Claude Code primitives (Agent / TeamCreate / SendMessage / TaskCreate).
+**That is the only execution runtime** — there is no compiled `.js` workflow runtime and no subprocess
+batch runner; the inherited `prompt-runner/` is vendored capability, NOT an execution path. The
+inherited genome hooks (context-preservation + long-term memory, L0-L2 quality gates, budget ceiling,
+SOT) fire in that live session.
 
-Routing rule: run this harness via its canonical runtime; reach for prompt-runner only for the
-long human-driven batch case above. Never route one task through both.
-
-Run: `python3 ../../validate_harness.py .` (build gate) then
-`Workflow({ scriptPath: ".harness/workflow.js", args: {...} })`.
+Run: open a session in this dir (`cd <harness_dir> && claude`) and trigger the orchestrator skill;
+`python3 ../../validate_harness.py .` is the build gate.
 """
 
 _RUNTIME_MANIFEST = {
@@ -98,13 +98,40 @@ def _rsync(src, dst, excludes):
     subprocess.run(args, check=True)
 
 
+def _hook_cmd(script):
+    return ('if test -f "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; then '
+            'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; fi' % (script, script))
+
+
 def _merge_settings(harness_dir):
     base = json.load(open(os.path.join(_GENOME, ".claude", "settings.json"), encoding="utf-8"))
     hooks = base.setdefault("hooks", {})
+    # CYS SubagentStop token log (coarse/advisory). timeout=5s — was 5000 (ms-vs-s bug, CD-5).
     ss = hooks.setdefault("SubagentStop", [])
-    cmd = 'if test -f "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; then python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; fi' % (_CYS_LOG_HOOK, _CYS_LOG_HOOK)
     if not any(_CYS_LOG_HOOK in json.dumps(e) for e in ss):
-        ss.append({"matcher": "*", "hooks": [{"type": "command", "command": cmd, "timeout": 5000}]})
+        ss.append({"matcher": "*", "hooks": [{"type": "command", "command": _hook_cmd(_CYS_LOG_HOOK), "timeout": 5}]})
+    # CYS runtime spawn-count ceiling — PreToolUse(Agent|Task|TeamCreate) budget_block (exit 2).
+    # Disjunction matcher covers the spawn primitive across substrate versions (R2/CD-2):
+    # current Claude Code spawns via `Agent`; legacy genome prose uses `Task`; teams via `TeamCreate`.
+    pre = hooks.setdefault("PreToolUse", [])
+    if not any("budget_block.py" in json.dumps(e) for e in pre):
+        pre.append({"matcher": "Agent|Task|TeamCreate",
+                    "hooks": [{"type": "command", "command": _hook_cmd("budget_block.py"), "timeout": 5}]})
+    # M0d: the missing halves that make the ceiling + gates actually FIRE.
+    post = hooks.setdefault("PostToolUse", [])
+    # spawn_counter increments budget.spawns_used (the counter budget_block reads at PreToolUse).
+    if not any("spawn_counter.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Agent|Task|TeamCreate",
+                     "hooks": [{"type": "command", "command": _hook_cmd("spawn_counter.py"), "timeout": 5}]})
+    # qa_gate_runner fires L0-L2 (via gate_or_block) on a claimed step — exit 2 halts a real failure.
+    if not any("qa_gate_runner.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Agent|Task|TaskUpdate",
+                     "hooks": [{"type": "command", "command": _hook_cmd("qa_gate_runner.py"), "timeout": 15}]})
+    # sot_init instantiates .harness/state.yaml on cold start (so the SOT + ceiling exist on run 1).
+    starts = hooks.setdefault("SessionStart", [])
+    if not any("sot_init.py" in json.dumps(e) for e in starts):
+        starts.append({"matcher": "startup|clear|resume",
+                       "hooks": [{"type": "command", "command": _hook_cmd("sot_init.py"), "timeout": 5}]})
     atomic_write(os.path.join(harness_dir, ".claude", "settings.json"),
                  json.dumps(base, indent=2, ensure_ascii=False) + "\n")
 
@@ -129,7 +156,38 @@ def _verify(harness_dir):
     return errors
 
 
-def inherit(harness_dir, verify_only=False):
+def _init_memory_store(harness_dir):
+    """Seed the Tier-II cross-run domain memory store (M6) — the RLM 'external environment' the harness
+    queries programmatically across repeated RUNS. IDEMPOTENT: only creates missing seed files, never
+    clobbers accumulated runs/knowledge (so memory accretes run over run)."""
+    mem = os.path.join(harness_dir, ".harness", "memory")
+    os.makedirs(os.path.join(mem, "runs"), exist_ok=True)
+    os.makedirs(os.path.join(mem, "risk"), exist_ok=True)
+    seeds = {
+        "archive.manifest.json": json.dumps({
+            "schema_version": "0.1",
+            "purpose": "Tier-II cross-run domain memory (RLM external environment) — query programmatically, never bulk-load",
+            "sections": {
+                "runs/index.jsonl": "thin append-only probe; one line per run. Grep it, then Read only matched runs/<id>/.",
+                "domain-knowledge.yaml": "IMMORTAL DKS: entities/relations/constraints, reused as L1 verification criteria.",
+                "risk/decisions.jsonl": "IMMORTAL standing decisions / risks (e.g. 'never use source X')."},
+            "query_recipe": "Grep '<query tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<run_id>/* on a hit only",
+        }, indent=2, ensure_ascii=False) + "\n",
+        "domain-knowledge.yaml": ("# IMMORTAL domain knowledge (DKS) — entities/relations/constraints,"
+                                  " accreted across runs.\nentities: {}\nrelations: []\nconstraints: []\n"),
+        os.path.join("runs", "index.jsonl"): "",
+        os.path.join("risk", "decisions.jsonl"): "",
+    }
+    for rel, content in seeds.items():
+        p = os.path.join(mem, rel)
+        if not os.path.exists(p):
+            atomic_write(p, content)
+
+
+def inherit(harness_dir, verify_only=False, runtime_manifest=None):
+    """Transplant the genome. runtime_manifest overrides the default (workflow.js-canonical)
+    RUNTIME.json — emit_orchestrator passes an orchestrator-skill-canonical manifest for the
+    primitive substrate (execution_mode agent|team|hybrid)."""
     harness_dir = os.path.abspath(harness_dir)
     if not os.path.isdir(_GENOME):
         raise SystemExit("genome/ not found — vendor it first (rsync AgenticWorkflow functional machinery).")
@@ -138,10 +196,12 @@ def inherit(harness_dir, verify_only=False):
         _rsync(_GENOME, harness_dir, excludes=["README.md", ".claude/settings.json"])
         # 2. merge settings.json
         _merge_settings(harness_dir)
-        # 3. install CYS log hook into the AWF scripts dir
-        src = os.path.join(_HERE, "templates", "hooks", _CYS_LOG_HOOK)
-        if os.path.isfile(src):
-            shutil.copyfile(src, os.path.join(harness_dir, ".claude", "hooks", "scripts", _CYS_LOG_HOOK))
+        # 3. install CYS-specific hooks into the AWF scripts dir (token log + gate/budget interlocks)
+        dst_scripts = os.path.join(harness_dir, ".claude", "hooks", "scripts")
+        for hook in _CYS_HOOKS:
+            src = os.path.join(_HERE, "templates", "hooks", hook)
+            if os.path.isfile(src):
+                shutil.copyfile(src, os.path.join(dst_scripts, hook))
         # 4. append CYS pointer to inherited CLAUDE.md (once)
         cm = os.path.join(harness_dir, "CLAUDE.md")
         if os.path.isfile(cm):
@@ -155,6 +215,8 @@ def inherit(harness_dir, verify_only=False):
             gk = os.path.join(p, ".gitkeep")
             if not os.path.exists(gk):
                 open(gk, "w").close()
+        # 5.5 Tier-II cross-run domain memory store (M6 / RLM external environment)
+        _init_memory_store(harness_dir)
         # 6. provenance + runtime routing manifest (resolves the two-runtime ambiguity)
         atomic_write(os.path.join(harness_dir, ".harness", "GENOME.json"), json.dumps({
             "source": "AgenticWorkflow (READ-ONLY upstream)",
@@ -163,7 +225,7 @@ def inherit(harness_dir, verify_only=False):
             "genome_file_count": sum(len(fs) for _, _, fs in os.walk(_GENOME)),
         }, indent=2, ensure_ascii=False) + "\n")
         atomic_write(os.path.join(harness_dir, ".harness", "RUNTIME.json"),
-                     json.dumps(_RUNTIME_MANIFEST, indent=2, ensure_ascii=False) + "\n")
+                     json.dumps(runtime_manifest or _RUNTIME_MANIFEST, indent=2, ensure_ascii=False) + "\n")
     # 7. verify functional
     errs = _verify(harness_dir)
     return errs

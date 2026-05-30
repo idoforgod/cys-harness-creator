@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "report.json",
+  "title": "Report",
+  "description": "Final cited research report from the synthesize node. markdown carries inline [source_id] citations; citations is the resolved reference list. Matches the inlined S.report table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "markdown", "citations"],
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Report title."
+    },
+    "markdown": {
+      "type": "string",
+      "description": "Full report body in Markdown. Every factual sentence carries an inline [source_id] citation."
+    },
+    "citations": {
+      "type": "array",
+      "description": "Resolved references; each source_id should match a findings source.id used in the markdown.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["source_id", "url"],
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "description": "The findings source.id this citation resolves."
+          },
+          "url": {
+            "type": "string",
+            "description": "Citation URL."
+          }
+        }
+      }
+    }
+  }
+}

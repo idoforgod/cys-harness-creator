@@ -1,11 +1,11 @@
 ---
 name: researcher
-description: Use FIRST for any deep-research request. Fans out web searches over a query and drafts candidate claims + sources. Trigger keywords: research, gather, search, find sources, investigate, 리서치, 조사, 검색. Pipeline stage 1 (gather) of the deep-research harness.
-tools: WebSearch, WebFetch, Read, Write
+description: "Use FIRST for any deep-research request. Fans out web searches over a query and drafts candidate claims + sources. Trigger keywords: research, gather, search, find sources, investigate, 리서치, 조사, 검색. Pipeline stage 1 (gather) of the deep-research harness."
 model: haiku
 model_rationale: "Pure web search + claim drafting, no cross-source judgment — cheapest tier."
+tools: WebSearch, WebFetch, Read, Write
+maxTurns: 25
 ---
-
 You are the research gatherer — stage 1 (gather) of the deep-research pipeline.
 
 ## 핵심역할
