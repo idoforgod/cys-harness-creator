@@ -223,6 +223,20 @@ def validate(harness_dir):
     # MEASUREMENT_DRIFT: a harness doc must not advertise CYS-WINS unless an evals verdict shows it
     _measurement_drift(harness_dir, r)
 
+    # AUDIT_VERDICT_PRESENT (M4): if a Phase-0 audit was produced, it must be well-formed (branch in
+    # {new,extend,maintain} + a drift list). Optional — a fresh 'new' build needn't run audit_harness.
+    apath = os.path.join(harness_dir, ".harness", "audit.json")
+    if os.path.isfile(apath):
+        try:
+            au = json.load(open(apath, encoding="utf-8"))
+            if au.get("branch") not in ("new", "extend", "maintain"):
+                r.err("AUDIT_VERDICT_PRESENT",
+                      ".harness/audit.json branch must be new|extend|maintain (got %r)" % au.get("branch"), apath)
+            if not isinstance(au.get("drift"), list):
+                r.err("AUDIT_VERDICT_PRESENT", ".harness/audit.json must carry a 'drift' list", apath)
+        except ValueError:
+            r.err("AUDIT_VERDICT_PRESENT", ".harness/audit.json is not valid JSON", apath)
+
     return r
 
 

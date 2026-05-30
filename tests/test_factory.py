@@ -331,6 +331,27 @@ class TestDomainSkill(unittest.TestCase):
             self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
 
 
+class TestAudit(unittest.TestCase):
+    """M4 Phase-0: audit_harness classifies new/extend/maintain and detects drift deterministically."""
+
+    def test_classify_branch(self):
+        import audit_harness as ah
+        self.assertEqual(ah.classify_branch({"has_graph": False, "agents_on_disk": set()}, []), "new")
+        self.assertEqual(ah.classify_branch({"has_graph": True, "agents_on_disk": {"a"}}, []), "extend")
+        self.assertEqual(ah.classify_branch({"has_graph": True, "agents_on_disk": {"a"}}, [{"kind": "agent"}]), "maintain")
+
+    def test_drift_set_diffs(self):
+        import audit_harness as ah
+        g = {"harness_name": "h", "nodes": [
+            {"id": "a", "agent": "researcher"},
+            {"id": "b", "agent": "synth", "skill_authoring": {"mode": "skill", "reason": "complex"}}]}
+        kinds = {(d["kind"], d["name"]) for d in ah.compute_drift(g, {"researcher", "orphan"}, set())}
+        self.assertIn(("agent", "orphan"), kinds, "on-disk agent not in graph = drift")
+        self.assertIn(("agent", "synth"), kinds, "graph agent not on disk = drift")
+        self.assertIn(("skill", "h-b"), kinds, "graph-implied skill not on disk = drift")
+        self.assertNotIn(("agent", "researcher"), kinds, "matched agent is not drift")
+
+
 class TestMeasurementDrift(unittest.TestCase):
     """The +37.5pp lesson: reference docs must cite the REAL evals verdict, never a stale win."""
 
