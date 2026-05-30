@@ -310,8 +310,8 @@ python3 "$TR"/h2h_aggregate.py <runs.json> \
 - **verdict**: delta ≥ +15pp → `CYS-WINS` / delta ≤ −15pp → `BASELINE-WINS` / 그 사이 → `INCONCLUSIVE`. 마진은 `HEAD_TO_HEAD_WIN_MARGIN_PP`(15).
 - **provenance**: schema_version / model_id / harness_version / git_sha / n_runs를 스탬프 → 재현·감사 가능.
 
-실제 deep-research fixture(`examples/deep-research/evals/deep-research.runs.json`)는 현재 **n=1 실측**이다 — C2(CYS literal `workflow.js`)=0.833 vs C3(no-harness 단일 opus)=1.0:
-→ median(C2)=0.833, median(C3)=1.0, delta=**−16.67pp** ≤ −15pp → `BASELINE-WINS`. **즉 현재 데이터로는 baseline이 이긴다(정직 기록).** n=1·variance=0으로 통계적으로 빈약하므로, **피벗 후 프리미티브 기질에서 n≥5 + blind 2-grader로 재측정**해 L0-L2·적대적 리뷰 활성화가 A5/A7 실패를 잡아 이 결과를 뒤집는지 확인해야 한다(P5).
+실제 deep-research fixture(`examples/deep-research/evals/deep-research.runs.json`)는 현재 **n=5 실측**이다(피벗 후 프리미티브 기질, 라이브 웹 리서치, 블라인드 채점) — C2(CYS 하네스) median=1.0 vs C3(no-harness 단일 opus) median=0.875:
+→ delta=**+12.5pp**, 15pp 마진 미달 → `INCONCLUSIVE`. **CYS가 앞선다 — 이전 n=1 −16.67pp `BASELINE-WINS`를 뒤집었다(정직 기록).** 활성화된 L0-L2·적대적 리뷰가 baseline의 **A4(미검증 주장 잔존, 3/5)·A6(통계 날조, 4/5)** 실패를 잡아낸 것이 격차의 원인 — 피벗이 약속한 게놈 발화가 실제로 작동. 단 15pp `CYS-WINS` 마진은 못 넘어 INCONCLUSIVE이므로, 더 강한 결론(다도메인·더 큰 n)은 추가 측정이 필요하다(C2 variance 0.0025로 매우 안정적).
 > ⚠️ 이전 판본의 "median(C2)=0.875 / +37.5pp / CYS-WINS"는 **hand-authored HYPOTHESIS fixture**였고 실측과 모순되어 **폐기**됐다. 모든 h2h/lift 인용 수치는 `evals/*.verdict.json`(디스크)과 일치해야 하며, `validate_harness.py`의 `MEASUREMENT_DRIFT` 체크가 이를 강제한다.
 
 ### 5-3. 정직성 규율

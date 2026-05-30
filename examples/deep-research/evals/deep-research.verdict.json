@@ -1,32 +1,40 @@
 {
   "conditions": {
     "C2": {
-      "median": 0.8333,
-      "variance": 0.0,
-      "n": 1,
+      "median": 1.0,
+      "variance": 0.0025,
+      "n": 5,
       "runs": [
-        0.8333333333333334
+        1.0,
+        1.0,
+        1.0,
+        0.875,
+        1.0
       ]
     },
     "C3": {
-      "median": 1.0,
-      "variance": 0.0,
-      "n": 1,
+      "median": 0.875,
+      "variance": 0.02125,
+      "n": 5,
       "runs": [
-        1.0
+        0.75,
+        0.875,
+        0.5,
+        0.875,
+        0.875
       ]
     }
   },
-  "delta_pp": -16.67,
+  "delta_pp": 12.5,
   "margin_pp": 15,
-  "verdict": "BASELINE-WINS",
+  "verdict": "INCONCLUSIVE",
   "verdict_basis": "median(C2) - median(C3) vs +/-HEAD_TO_HEAD_WIN_MARGIN_PP",
   "provenance": {
     "schema_version": "0.1",
     "model_id": "opus-4.8",
-    "harness_version": null,
-    "git_sha": "ac4dd9b",
-    "n_runs": 1
+    "harness_version": "0.1.0",
+    "git_sha": "dfb5a12",
+    "n_runs": 5
   },
   "note": "INCONCLUSIVE => margin not cleared either way; high variance => increase n. Report domains where CYS does NOT win honestly."
 }

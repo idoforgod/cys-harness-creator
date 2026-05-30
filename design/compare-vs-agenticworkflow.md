@@ -101,7 +101,7 @@ I have enough grounded verification. Producing the comparison.
 ### 성능 증거 — 정직 경고 (CRITICAL HONESTY)
 | 지표 | 출처 | repo 재현 가능? |
 |---|---|---|
-| **n=1 BASELINE-WINS −16.67pp** (C2=0.833 vs C3 무하네스 opus=1.0) | `evals/deep-research.verdict.json` (stamped) | ✅ **재현 가능** (`h2h_aggregate.py`) — 과거 이 줄의 "+38pp/lift 1.00"은 폐기된 가설 fixture였고 실측과 모순돼 거짓이었음 |
+| **n=5 INCONCLUSIVE +12.5pp** (median C2=1.0 vs C3 무하네스 opus=0.875 — CYS 우세, 15pp 마진 미달) | `evals/deep-research.verdict.json` (stamped, n=5) | ✅ **재현 가능** (`h2h_aggregate.py`) — 과거 이 줄의 "+38pp/lift 1.00"은 폐기된 가설 fixture였고 거짓이었음; 이전 n=1은 −16.67pp 패배였으나 n=5에서 뒤집힘 |
 | runs.json / lift-gate-fixture.json | repo 상주 | ⚠️ **hand-authored 샘플/가설** (파일 자체가 `"_note":"M1 lift-gate sample fixture"`로 자기 라벨링 — 실측) |
 | emit/validate/genome-transplant/security-hook capability | repo 상주 | ✅ **on-disk 재실행 가능** (9 py 전부 py_compile OK) |
 

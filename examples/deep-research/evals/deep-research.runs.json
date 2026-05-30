@@ -1,23 +1,9 @@
 {
   "runs": [
     {
-      "a_is": "C2-CYS-literal-workflow.js",
-      "b_is": "C3-no-harness",
-      "c2_pass_rate": 0.8333333333333334,
-      "c3_pass_rate": 1,
+      "c2_pass_rate": 1,
+      "c3_pass_rate": 0.75,
       "c2_passed": [
-        "A1",
-        "A2",
-        "A3",
-        "A4",
-        "A6",
-        "A8"
-      ],
-      "c2_failed": [
-        "A5",
-        "A7"
-      ],
-      "c3_passed": [
         "A1",
         "A2",
         "A3",
@@ -27,9 +13,132 @@
         "A7",
         "A8"
       ],
-      "c3_failed": []
+      "c2_failed": [],
+      "c3_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A5",
+        "A7",
+        "A8"
+      ],
+      "c3_failed": [
+        "A4",
+        "A6"
+      ]
+    },
+    {
+      "c2_pass_rate": 1,
+      "c3_pass_rate": 0.875,
+      "c2_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8"
+      ],
+      "c2_failed": [],
+      "c3_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A7",
+        "A8"
+      ],
+      "c3_failed": [
+        "A6"
+      ]
+    },
+    {
+      "c2_pass_rate": 1,
+      "c3_pass_rate": 0.5,
+      "c2_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8"
+      ],
+      "c2_failed": [],
+      "c3_passed": [
+        "A2",
+        "A3",
+        "A5",
+        "A7"
+      ],
+      "c3_failed": [
+        "A1",
+        "A4",
+        "A6",
+        "A8"
+      ]
+    },
+    {
+      "c2_pass_rate": 0.875,
+      "c3_pass_rate": 0.875,
+      "c2_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A6",
+        "A7",
+        "A8"
+      ],
+      "c2_failed": [
+        "A5"
+      ],
+      "c3_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A7",
+        "A8"
+      ],
+      "c3_failed": [
+        "A6"
+      ]
+    },
+    {
+      "c2_pass_rate": 1,
+      "c3_pass_rate": 0.875,
+      "c2_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A4",
+        "A5",
+        "A6",
+        "A7",
+        "A8"
+      ],
+      "c2_failed": [],
+      "c3_passed": [
+        "A1",
+        "A2",
+        "A3",
+        "A5",
+        "A6",
+        "A7",
+        "A8"
+      ],
+      "c3_failed": [
+        "A4"
+      ]
     }
   ],
-  "_note": "REAL stamped head-to-head (P0-2). C2=literal workflow.js (run wf_8cec50f4-dab), C3=no-harness single opus (run wf_c4eab6d2-bb7). Replaces the prior hand-authored HYPOTHESIS fixture.",
-  "c2_source": "literal examples/deep-research/.harness/workflow.js (run wf_8cec50f4-dab)"
+  "model_id": "opus-4.8",
+  "git_sha": "dfb5a12",
+  "harness_version": "0.1.0",
+  "_note": "REAL stamped n=5 head-to-head (live web research, blind-graded vs 8-assertion scorecard). C2=CYS deep-research harness (multi-angle research + L2 adversarial review), C3=no-harness single opus. Workflow wf_62d88129-6b3. Replaces the prior n=1 fixture."
 }
