@@ -2,30 +2,62 @@
   "schema_version": "0.1",
   "harness_name": "design-decision",
   "harness_version": "0.1.0",
-  "execution_mode": "workflow",
+  "execution_mode": "agent",
   "topology": "producer-reviewer",
-  "budget": { "total_tokens": 300000, "approval_required": true },
+  "budget": {
+    "total_tokens": 300000,
+    "approval_required": true
+  },
   "nodes": [
     {
-      "id": "propose", "agent": "proposer", "model": "opus", "decision_mechanism": "single",
+      "id": "propose",
+      "agent": "proposer",
+      "model": "opus",
+      "decision_mechanism": "single",
       "mechanism_params": {},
-      "inputs": ["_workspace/00_input/decision.md"],
-      "outputs": ["_workspace/01_propose/design.json"],
-      "write_paths": ["_workspace/01_propose/"],
+      "inputs": [
+        "_workspace/00_input/decision.md"
+      ],
+      "outputs": [
+        "_workspace/01_propose/design.json"
+      ],
+      "write_paths": [
+        "_workspace/01_propose/"
+      ],
       "output_schema": "schemas/design.json",
-      "retries": 0, "on_exhaust": "escalate", "max_rounds": 3
+      "retries": 0,
+      "on_exhaust": "escalate",
+      "max_rounds": 3
     },
     {
-      "id": "adjudicate", "agent": "debater", "model": "sonnet", "decision_mechanism": "debate-with-judge",
-      "mechanism_params": { "max_rounds": 2, "judge": "opus", "n": 2 },
-      "inputs": ["_workspace/01_propose/design.json"],
-      "outputs": ["_workspace/02_adjudicate/verdict.json"],
-      "write_paths": ["_workspace/02_adjudicate/"],
+      "id": "adjudicate",
+      "agent": "debater",
+      "model": "sonnet",
+      "decision_mechanism": "debate-with-judge",
+      "mechanism_params": {
+        "max_rounds": 2,
+        "judge": "opus",
+        "n": 2
+      },
+      "inputs": [
+        "_workspace/01_propose/design.json"
+      ],
+      "outputs": [
+        "_workspace/02_adjudicate/verdict.json"
+      ],
+      "write_paths": [
+        "_workspace/02_adjudicate/"
+      ],
       "output_schema": "schemas/verdict.json",
-      "retries": 0, "on_exhaust": "proceed-with-gap", "max_rounds": 2
+      "retries": 0,
+      "on_exhaust": "proceed-with-gap",
+      "max_rounds": 2
     }
   ],
   "edges": [
-    { "from": "propose", "to": "adjudicate" }
+    {
+      "from": "propose",
+      "to": "adjudicate"
+    }
   ]
 }

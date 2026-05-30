@@ -250,7 +250,20 @@ def _genome_checks(harness_dir, r, graph=None):
     # RUNTIME_DECLARED: dual-accept by execution_mode (CD-6).
     #   execution_mode='workflow'        -> canonical 'cys-mode-a' (Mode-A workflow.js)
     #   execution_mode=agent|team|hybrid -> canonical '<harness>-orchestrator' (primitive substrate)
-    mode = (graph or {}).get("execution_mode", "workflow")
+    mode = (graph or {}).get("execution_mode", "agent")  # M0: primitive substrate is the product default
+    # WORKFLOW_RETIRED (M0/locked-3): Mode-A workflow.js is retired from the PRODUCT. A produced harness
+    # must run 100% on Claude Code primitives (agent/team/hybrid). 'workflow' survives only as
+    # factory-internal measurement tooling, never as a shipped harness.
+    if mode == "workflow":
+        r.err("WORKFLOW_RETIRED",
+              "execution_mode='workflow' is retired from the product — use agent/team/hybrid "
+              "(workflow.js survives only as factory-internal measurement tooling)",
+              os.path.join(harness_dir, ".harness", "graph.json"))
+    _wjs = os.path.join(harness_dir, ".harness", "workflow.js")
+    if os.path.isfile(_wjs):
+        r.err("WORKFLOW_RETIRED",
+              "produced harness ships .harness/workflow.js (retired non-primitive runtime) — remove it; "
+              "the orchestrator skill is the only execution runtime", _wjs)
     hname = (graph or {}).get("harness_name", "")
     expected_canonical = "cys-mode-a" if mode == "workflow" else ("%s-orchestrator" % hname)
     rp = os.path.join(harness_dir, ".harness", "RUNTIME.json")

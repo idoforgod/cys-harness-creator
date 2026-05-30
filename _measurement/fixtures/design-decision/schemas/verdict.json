@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "verdict.json",
+  "title": "Verdict",
+  "description": "Adjudication output for the adjudicate node (debate-with-judge). approved=true breaks the producer-reviewer loop; otherwise the producer re-proposes against concerns. Matches the inlined S.adjudicate_schema table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approved", "chosen", "rationale", "concerns"],
+  "properties": {
+    "approved": {
+      "type": "boolean",
+      "description": "True when the proposed design is sound enough to ship; the producer-reviewer loop breaks on true."
+    },
+    "chosen": {
+      "type": "string",
+      "description": "The option the judge endorses (an options[].name from the design). Stands even when approved=false as the current best."
+    },
+    "rationale": {
+      "type": "string",
+      "description": "The judge's reasoning for the chosen option, distilled from the debate transcript."
+    },
+    "concerns": {
+      "type": "array",
+      "description": "Unresolved issues the re-proposal must address. Empty when approved=true.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue", "severity"],
+        "properties": {
+          "issue": { "type": "string", "description": "What is wrong or under-justified in the design." },
+          "severity": { "type": "string", "enum": ["low", "med", "high"], "description": "Concern severity." }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "routing.json",
+  "title": "Routing",
+  "description": "Final routing decision from the single-sink route node. Merges the classify_category and classify_priority winners (received as the fanned [classification, priority] array) into one actionable assignment. Matches the inlined S.route_schema table in workflow.js.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["category", "priority", "queue", "sla_hours", "summary"],
+  "properties": {
+    "category": {
+      "type": "string",
+      "description": "Category carried over from the classification winner.",
+      "enum": ["billing", "bug", "feature_request", "account", "how_to", "other"]
+    },
+    "priority": {
+      "type": "string",
+      "description": "Priority carried over from the priority winner.",
+      "enum": ["P0", "P1", "P2", "P3"]
+    },
+    "queue": {
+      "type": "string",
+      "description": "Destination team queue the ticket is routed to.",
+      "enum": ["billing_team", "engineering", "product", "account_team", "support_l1", "triage_backlog"]
+    },
+    "sla_hours": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Response SLA in hours, derived deterministically from priority (P0=1, P1=4, P2=24, P3=72)."
+    },
+    "summary": {
+      "type": "string",
+      "description": "One-line routing summary for the assignee, combining category, priority, and queue."
+    }
+  }
+}

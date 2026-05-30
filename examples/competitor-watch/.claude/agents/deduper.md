@@ -1,9 +1,10 @@
 ---
 name: deduper
 description: "중복 제거·정규화. competitor-watch 하네스에서 사용."
-tools: Read, Write
 model: haiku
 model_rationale: "중복 제거·정규화 — 역할에 맞는 티어."
+tools: Read, Write
+maxTurns: 25
 ---
 # deduper
 ## 핵심 역할

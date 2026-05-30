@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1",
+  "harness_name": "deep-research",
+  "harness_version": "0.1.0",
+  "execution_mode": "workflow",
+  "topology": "pipeline",
+  "budget": { "total_tokens": 600000, "approval_required": true },
+  "nodes": [
+    {
+      "id": "gather", "agent": "researcher", "model": "haiku", "decision_mechanism": "single",
+      "mechanism_params": {},
+      "inputs": ["_workspace/00_input/query.md"],
+      "outputs": ["_workspace/01_gather/findings.json"],
+      "write_paths": ["_workspace/01_gather/"],
+      "output_schema": "schemas/findings.json",
+      "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1
+    },
+    {
+      "id": "fetch", "agent": "fetcher", "model": "haiku", "decision_mechanism": "single",
+      "mechanism_params": {},
+      "inputs": ["_workspace/01_gather/findings.json"],
+      "outputs": ["_workspace/02_fetch/findings.json"],
+      "write_paths": ["_workspace/02_fetch/"],
+      "output_schema": "schemas/findings.json",
+      "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1
+    },
+    {
+      "id": "verify", "agent": "verifier", "model": "sonnet", "decision_mechanism": "reflect-then-revise",
+      "mechanism_params": { "max_rounds": 2, "critic": "opus" },
+      "inputs": ["_workspace/02_fetch/findings.json"],
+      "outputs": ["_workspace/03_verify/findings.json"],
+      "write_paths": ["_workspace/03_verify/"],
+      "output_schema": "schemas/findings.json",
+      "retries": 0, "on_exhaust": "proceed-with-gap", "max_rounds": 2
+    },
+    {
+      "id": "synthesize", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+      "mechanism_params": {},
+      "inputs": ["_workspace/03_verify/findings.json"],
+      "outputs": ["_workspace/04_report/report.json"],
+      "write_paths": ["_workspace/04_report/"],
+      "output_schema": "schemas/report.json",
+      "retries": 0, "on_exhaust": "escalate", "max_rounds": 1
+    }
+  ],
+  "edges": [
+    { "from": "gather", "to": "fetch" },
+    { "from": "fetch", "to": "verify" },
+    { "from": "verify", "to": "synthesize" }
+  ]
+}

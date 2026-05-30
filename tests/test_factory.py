@@ -38,18 +38,26 @@ def _load_hook(name):
 
 GOLDEN = os.path.join(os.path.dirname(__file__), "golden")
 CORE_EXAMPLES = ["deep-research", "ticket-triage", "design-decision"]
+# M0: emit_workflow (Mode-A) is retired from the product; its determinism is now guarded against
+# FROZEN workflow-mode fixtures, decoupled from the product examples/ (which are now primitive mode).
+MEASUREMENT_FIX = os.path.join(ROOT, "_measurement", "fixtures")
 
 
 class TestEmitDeterminism(unittest.TestCase):
-    """The single verified-valuable property: same graph.json -> byte-identical workflow.js."""
+    """Factory-internal: emit_workflow (the retired Mode-A emitter, kept for measurement only) stays
+    byte-deterministic. Fixtures are FROZEN workflow-mode graphs under _measurement/fixtures/ —
+    decoupled from the product examples/, which are now primitive (agent/team) mode (M0)."""
 
     def test_emit_byte_identical_to_golden(self):
+        import shutil
         for ex in CORE_EXAMPLES:
-            hd = os.path.join(ROOT, "examples", ex)
-            graph = emit_workflow._load(os.path.join(hd, ".harness", "graph.json"))
-            js = emit_workflow.emit(graph, hd)
-            golden = open(os.path.join(GOLDEN, ex + ".workflow.js")).read()
-            self.assertEqual(js, golden, "%s: emit() drifted from golden (determinism regression)" % ex)
+            with tempfile.TemporaryDirectory() as td:
+                dst = os.path.join(td, ex)
+                shutil.copytree(os.path.join(MEASUREMENT_FIX, ex), dst)
+                graph = emit_workflow._load(os.path.join(dst, ".harness", "graph.json"))
+                js = emit_workflow.emit(graph, dst)
+                golden = open(os.path.join(GOLDEN, ex + ".workflow.js")).read()
+                self.assertEqual(js, golden, "%s: emit() drifted from golden (determinism regression)" % ex)
 
     def test_emitted_has_no_clock_or_rng(self):
         for ex in CORE_EXAMPLES:

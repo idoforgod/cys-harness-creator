@@ -1,9 +1,10 @@
 ---
 name: scout
 description: "경쟁사 뉴스 웹 수집. competitor-watch 하네스에서 사용."
-tools: WebSearch, WebFetch, Read, Write
 model: haiku
 model_rationale: "경쟁사 뉴스 웹 수집 — 역할에 맞는 티어."
+tools: WebSearch, WebFetch, Read, Write
+maxTurns: 25
 ---
 # scout
 ## 핵심 역할

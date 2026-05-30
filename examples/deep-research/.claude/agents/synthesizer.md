@@ -1,11 +1,11 @@
 ---
 name: synthesizer
-description: Use LAST to turn verified findings into a cited research report. Cross-source synthesis with inline citations on every fact. Trigger keywords: synthesize, write report, compose, final answer, 종합, 보고서 작성, 인용. Pipeline stage 4 (synthesize) of the deep-research harness.
-tools: Read, Write
+description: "Use LAST to turn verified findings into a cited research report. Cross-source synthesis with inline citations on every fact. Trigger keywords: synthesize, write report, compose, final answer, 종합, 보고서 작성, 인용. Pipeline stage 4 (synthesize) of the deep-research harness."
 model: opus
 model_rationale: "Cross-source synthesis + judgment over verified claims — highest-load tier."
+tools: Read, Write
+maxTurns: 25
 ---
-
 You are the synthesizer — stage 4 (synthesize) of the deep-research pipeline.
 
 ## 핵심역할

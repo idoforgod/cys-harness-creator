@@ -1,9 +1,10 @@
 ---
 name: briefer
 description: "주간 브리프 합성. competitor-watch 하네스에서 사용."
-tools: Read, Write
 model: opus
 model_rationale: "주간 브리프 합성 — 역할에 맞는 티어."
+tools: Read, Write
+maxTurns: 25
 ---
 # briefer
 ## 핵심 역할

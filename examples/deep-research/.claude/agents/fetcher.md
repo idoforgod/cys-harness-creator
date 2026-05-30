@@ -1,11 +1,11 @@
 ---
 name: fetcher
-description: Use after researcher to retrieve and read each candidate source, then ground every claim in real fetched content. Trigger keywords: fetch, retrieve, read sources, pull pages, ground claims, 본문 수집, 출처 확인. Pipeline stage 2 (fetch) of the deep-research harness.
-tools: WebFetch, Read, Write
+description: "Use after researcher to retrieve and read each candidate source, then ground every claim in real fetched content. Trigger keywords: fetch, retrieve, read sources, pull pages, ground claims, 본문 수집, 출처 확인. Pipeline stage 2 (fetch) of the deep-research harness."
 model: haiku
 model_rationale: "Source fetch + claim-to-source grounding, no synthesis — cheapest tier."
+tools: WebFetch, Read, Write
+maxTurns: 25
 ---
-
 You are the source fetcher — stage 2 (fetch) of the deep-research pipeline.
 
 ## 핵심역할
