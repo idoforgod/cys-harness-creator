@@ -247,6 +247,40 @@ class TestMeasurementDrift(unittest.TestCase):
             self.assertIn("MEASUREMENT_DRIFT", codes)
 
 
+class TestTierPolicyMirror(unittest.TestCase):
+    """C16: validate_harness.TIER_BY_ROLE_CLASS hand-mirrors model-tier-policy.js. Catch drift."""
+
+    def test_py_and_js_tier_maps_match(self):
+        import shutil
+        import subprocess
+        if not shutil.which("node"):
+            self.skipTest("node not installed")
+        js = os.path.join(ROOT, "model-tier-policy.js")
+        out = subprocess.run(["node", "-e",
+                              "process.stdout.write(JSON.stringify(require('%s').TIER_BY_ROLE_CLASS))" % js],
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, "node failed: " + out.stderr)
+        self.assertEqual(json.loads(out.stdout), validate_harness.TIER_BY_ROLE_CLASS,
+                         "tier map drift between model-tier-policy.js and validate_harness.py — keep in sync")
+
+
+class TestWarrantTeamCost(unittest.TestCase):
+    """CD-3: cost_band adds team-coordination tokens under execution_mode team|hybrid."""
+
+    def test_team_mode_costs_more_than_agent(self):
+        nodes = [{"id": "a", "model": "haiku", "decision_mechanism": "single", "retries": 0},
+                 {"id": "b", "model": "sonnet", "decision_mechanism": "single", "retries": 0}]
+        agent = warrant.cost_band(nodes, execution_mode="agent")
+        team = warrant.cost_band(nodes, execution_mode="team")
+        self.assertEqual(agent["team_coordination_tokens"], 0)
+        self.assertGreater(team["team_coordination_tokens"], 0)
+        self.assertGreater(team["total_tokens"], agent["total_tokens"])
+
+    def test_default_is_agent_backward_compatible(self):
+        nodes = [{"id": "a", "model": "haiku", "decision_mechanism": "single", "retries": 0}]
+        self.assertEqual(warrant.cost_band(nodes)["team_coordination_tokens"], 0)
+
+
 class TestPivotHooks(unittest.TestCase):
     """gate_or_block (advisory->blocking) and budget_block (spawn-count ceiling) decision logic."""
 

@@ -28,6 +28,7 @@ _DEFAULTS = {
     "TOKENS_PER_USD": {"haiku": 500_000, "sonnet": 166_667, "opus": 100_000},
     "BAND_LOW": 5e5,
     "BAND_MED": 5e6,
+    "TEAM_COORD_TOKENS": 4000,   # per-member SendMessage/coordination overhead (team/hybrid only)
 }
 
 
@@ -51,6 +52,7 @@ EXPECTED_TOKENS_DEFAULT = _C["EXPECTED_TOKENS_DEFAULT"]
 TIER_COST_WEIGHT = _C["TIER_COST_WEIGHT"]
 TOKENS_PER_USD = _C["TOKENS_PER_USD"]
 BAND_LOW, BAND_MED = _C["BAND_LOW"], _C["BAND_MED"]
+TEAM_COORD_TOKENS = _C["TEAM_COORD_TOKENS"]
 
 
 def _fanout(node):
@@ -124,8 +126,14 @@ def classify(p):
             "rationale": f"{domains} domain(s) and/or ordered stages -> {topology} / {mech}."}
 
 
-def cost_band(nodes):
-    """Token cost-band over graph.json nodes. Returns the load-bearing pre-flight number."""
+def cost_band(nodes, execution_mode="agent"):
+    """Token cost-band over graph.json nodes. Returns the load-bearing pre-flight number.
+
+    CD-3: under execution_mode team|hybrid the produced harness runs as a peer team whose
+    SendMessage/self-coordination traffic is NOT captured by the per-node single-pass formula
+    (warrant's known blind spot, == idoforgod's documented multi-session cost weakness). We add
+    a first-order coordination term (TEAM_COORD_TOKENS per member, at sonnet weight) so the
+    band shown at approval is not systematically under-counted for the team substrate."""
     total_tokens = 0
     weighted = 0
     breakdown = []
@@ -139,9 +147,16 @@ def cost_band(nodes):
         usd += et / TOKENS_PER_USD.get(tier, TOKENS_PER_USD["sonnet"])
         breakdown.append({"id": nd.get("id"), "model": tier, "fanout": _fanout(nd),
                           "est_tokens": et, "weighted_units": wu})
+    team_coord = 0
+    if execution_mode in ("team", "hybrid"):
+        team_coord = TEAM_COORD_TOKENS * len(nodes)
+        total_tokens += team_coord
+        weighted += team_coord * TIER_COST_WEIGHT["sonnet"]
+        usd += team_coord / TOKENS_PER_USD["sonnet"]
     band = "LOW" if weighted < BAND_LOW else "MEDIUM" if weighted < BAND_MED else "HIGH"
     return {"total_tokens": total_tokens, "weighted_units": weighted, "band": band,
-            "usd_estimate": round(usd, 4), "breakdown": breakdown}
+            "usd_estimate": round(usd, 4), "execution_mode": execution_mode,
+            "team_coordination_tokens": team_coord, "breakdown": breakdown}
 
 
 # ---- CANONICAL deep-research dogfood (matches .harness/graph.json exactly) ----
@@ -172,14 +187,17 @@ def main():
             preds = json.load(f)
     else:
         preds = DEEP_RESEARCH_PREDICATES
+    exec_mode = "agent"
     if args.graph:
         with open(args.graph) as f:
-            nodes = json.load(f).get("nodes", [])
+            g = json.load(f)
+        nodes = g.get("nodes", [])
+        exec_mode = g.get("execution_mode", "agent")
     else:
         nodes = DEEP_RESEARCH_NODES
 
     verdict = classify(preds)
-    band = cost_band(nodes)
+    band = cost_band(nodes, execution_mode=exec_mode)
     out = {"predicates": preds, "verdict": verdict, "cost": band,
            "note": "warrant PROPOSES budget.total_tokens; graph.json is single-writer "
                    "(may double the floor for retry/variance headroom). approval_required=true "
