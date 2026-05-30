@@ -1,111 +1,96 @@
 ---
 name: harness-creator
-description: "도메인 한 문장을 검증된·비용통제된·재개가능한 에이전트 하네스로 변환하는 메타스킬(CYS Harness Creator). '하네스 만들어줘', '하네스 구성', '에이전트 팀 설계', '이 도메인 자동화 하네스', 하네스 점검·확장·진화 요청 시 사용. 후속: 하네스 재실행, 수정, 보완, 부분 재생성, 이전 결과 개선 요청 시에도 반드시 이 스킬을 사용."
+description: "도메인 한 문장을 검증된·비용통제된·재개가능한 풀스택 Claude 프리미티브 하네스(orchestrator skill + .claude/agents + Sub-agents + Agent Teams + Hooks + .claude/skills + 장기기억)로 변환하는 메타스킬(CYS Harness Creator). '하네스 만들어줘/구성/설계', '에이전트 팀 설계', '이 도메인 자동화', '하네스 점검·감사·확장·진화·동기화' 요청 시 사용. 후속: 재실행·수정·보완·부분재생성·이전결과개선·드리프트수정·유지보수 요청 시에도 반드시 이 스킬을 사용."
 ---
 
 # Harness Creator (CYS) — 메타스킬
 
-도메인 요청 → `graph.json`(불변 계약) + agent 파일(런타임 바인딩 frontmatter) + schema + emit된 **오케스트레이터 SKILL**(Claude Code 프리미티브 런타임) + 게놈 전수(active) + 검증기 + git repo.
-원본 idoforgod/harness 대비 우위: **prose 규칙이 아니라 머신체크 게이트 + 실재 실행 런타임 + 비용 거버넌스 + 헤드투헤드 측정 + AWF 게놈이 실제로 발화.**
+도메인 한 문장 → 머신체크된 `graph.json`(불변 계약)에서 **풀스택 Claude 프리미티브 하네스**를 emit한다:
+orchestrator skill + `.claude/agents/`(who) + 하이브리드 `.claude/skills/`(how) + Sub-agents(Agent) + Agent Teams(TeamCreate/SendMessage) + Hooks(settings.json) + 상속 AWF 게놈(L0-L2 게이트·SOT·적대적 리뷰·장기기억) + git repo.
+idoforgod/harness 대비: prose 규칙이 아니라 **머신체크 게이트 + 프리미티브 실행 + 비용 거버넌스 + 게놈 발화 + 헤드투헤드 측정.**
 
-핵심 원칙:
-1. **산출 하네스는 Claude Code 프리미티브(Agent/TeamCreate/SendMessage)에 실행을 위임한다(디폴트).** 이 기질에서만 상속된 AWF 게놈(lifecycle hook·L0-L2 게이트·SOT·적대적 리뷰)이 발화하고, 커스텀 `.claude/agents`의 model·tools가 런타임 강제된다. `execution_mode`: `agent`(순차 sub-spawn, 디폴트) / `team`(TeamCreate, P5 입증 후) / `hybrid`. **결정론 byte-replay가 필수인 드문 경우에만** `workflow`(Mode A `workflow.js`).
-2. **모든 규칙은 강제된다** — `validate_harness.py`가 위반 시 생성 실패(빌드타임 머신체크 유지). 런타임 게이트는 `gate_or_block.py`가 advisory validator를 exit-2 인터록으로 승격.
-3. **비용은 사전 승인 + 런타임 ceiling** — `warrant.py`가 토큰 밴드 표시 후 실행, 런타임은 `budget_block.py`가 spawn-count ceiling을 exit-2 강제(토큰 tally는 advisory).
-4. **생성 하네스는 git repo** — rollback substrate. 진행 상태는 `.harness/state.yaml`(오케스트레이터 단독쓰기 SOT).
-> 상세 전략·설계·검증: `design/pivot-to-claude-primitives-strategy.md` + `design/p1-probe-results.md`.
+## 핵심 원칙
 
-## 호출 & 경로 (이 스킬이 전역 설치되어도 자족 작동)
+1. **산출 하네스 실행 = 100% Claude Code 프리미티브 (절대규칙, A1).** 도메인 작업(추론·판단·생성)은 Agent/TeamCreate/SendMessage/TaskCreate가 수행한다. 결정론 Python(hook·검증기·메모리 스크립트)은 *실행이 아니라 가드레일*(발화·강제·기억)이다 — 제거 시 도메인 *답*이 바뀌면 불법(프리미티브여야), 차단/저장/측정/파싱만 하면 합법. **`workflow`(Mode-A workflow.js)는 제품에서 은퇴**(공장내부 측정 전용); `execution_mode` ∈ `team`/`agent`/`hybrid`.
+2. **모든 빌드 하네스는 6종 프리미티브 전부 인스턴스화 (A2 floor).** orchestrator + agents + sub-agents + **≥1 team stage** + hooks + ≥1 skill. → `execution_mode`는 `team` 또는 `hybrid`(pure-`agent`는 TeamCreate가 없어 `ALL_PRIMITIVES_PRESENT` 실패). 팀은 실험플래그 부재 시 sub-agent로 graceful-degrade. (warrant `single-agent` 판정은 예외.)
+3. **모든 규칙은 머신 강제** — `validate_harness.py`(~36 코드)가 위반 시 생성 실패. 런타임은 hook으로 *발화*: `qa_gate_runner`/`gate_or_block`(L0-L2 exit-2), `budget_block`+`spawn_counter`(spawn ceiling), `sot_init`(SOT), 보안 hook.
+4. **장기기억 일급** — Tier I(Context Preservation: 스냅샷·`[CONTEXT RECOVERY]` 복원·RLM knowledge-index) + Tier II(`.harness/memory/` 교차-실행 도메인 기억, RLM 외부환경). 모든 산출 하네스에 emit·검증(`CONTEXT_PRESERVATION_FIRSTCLASS`·`MEMORY_STORE_INIT`).
+5. **비용 = 사전 승인 + 런타임 ceiling** — `warrant.py` 토큰밴드 후 사람 승인, 런타임 `budget_block` spawn ceiling exit-2.
+6. **하네스 = git repo + 진화 시스템** — `.harness/state.yaml`(단일쓰기 SOT), `.harness/change-history.jsonl`(진화 이력).
 
-- **트리거:** `/harness-creator <도메인 한 문장>` (또는 "하네스 구성해줘" 등 description 매칭).
-- **TOOLS_ROOT** = `/Users/cys/Desktop/CYSjavis/cys-harness-creator` — 모든 도구(`warrant.py`·`emit_orchestrator.py`·`emit_workflow.py`·`validate_harness.py`·`inherit_genome.py`)와 게놈(`genome/`)이 여기 있다. 항상 `python3 "$TOOLS_ROOT"/<tool>.py` 형태로 호출.
-- **TARGET** = 새 하네스 생성 경로. 사용자가 지정하면 그곳, 없으면 `./<harness_name>/`(현재 작업 디렉토리 하위). 이하 `<TARGET>`.
+> 설계 전모·잠금결정·백로그: `design/STRATEGY-AND-DESIGN.md`. 구현 현황: `references/IMPLEMENTATION-STATUS.md`.
 
-**실행 명령 (Phase 5~6, 그대로 사용):**
+## 호출 & 경로 (전역 설치되어도 자족 작동)
+- **트리거:** `/harness-creator <도메인 한 문장>` (또는 description 매칭).
+- **TOOLS_ROOT** = `/Users/cys/Desktop/CYSjavis/cys-harness-creator` — 모든 도구·게놈(`genome/`)이 여기. 항상 `python3 "$TOOLS_ROOT"/<tool>.py`.
+- **TARGET** = 새 하네스 경로. 미지정 시 `./<harness_name>/`. 이하 `<TARGET>`.
+
+**실행 명령 (그대로 사용):**
 ```bash
 TR=/Users/cys/Desktop/CYSjavis/cys-harness-creator
-python3 "$TR"/warrant.py --predicates <TARGET>/.harness/predicates.json   # Phase -1 분류
-python3 "$TR"/warrant.py --graph <TARGET>/.harness/graph.json             # Phase 6 비용밴드
-python3 "$TR"/emit_orchestrator.py <TARGET>                               # Phase 4(디폴트): graph→오케스트레이터 SKILL+agents + 게놈 active 전수
-# (또는 execution_mode='workflow'인 경우에만) python3 "$TR"/emit_workflow.py <TARGET>   # Mode-A 결정론 replay
-python3 "$TR"/validate_harness.py <TARGET>                                # Phase 5: 빌드 게이트(통과해야 함)
+python3 "$TR"/warrant.py --predicates <TARGET>/.harness/predicates.json   # PRE: 분류 게이트
+python3 "$TR"/audit_harness.py        <TARGET>                            # RESEARCH R1: 상태감사 (new/extend/maintain + drift)
+python3 "$TR"/warrant.py --graph      <TARGET>/.harness/graph.json        # PLANNING P4: 비용밴드 (→ 사람 승인)
+python3 "$TR"/emit_orchestrator.py    <TARGET>                            # IMPL I3: graph→orchestrator+agents+게놈+메모리store
+python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL I5: 빌드 게이트(통과해야 함)
+# 진화: python3 "$TR"/evolve_harness.py <TARGET> --type <유형> --change "..." --reason "..."
 ```
-> `emit_orchestrator.py`(agent/team/hybrid)와 `emit_workflow.py`(workflow) 모두 게놈 전수(`inherit_genome.py`)를 자동 호출한다 — 별도 실행 불필요. `execution_mode`로 분기.
-> **실행 핸드오프(R4)**: 산출 후 하네스를 *실행*하려면 `cd <TARGET> && claude`로 **새 세션**을 열어야 그 세션의 settings.json hook이 발화한다(공장 세션이 아님).
+> `emit_orchestrator.py`가 **`emit_domain_skill.py`(도메인 스킬) + `inherit_genome.py`(게놈+`.harness/memory/` 시드)를 자동 호출**한다. `emit_workflow.py`는 **공장내부 측정 전용**(제품 emit 아님).
+> **실행 핸드오프**: 산출 후 하네스를 *실행*하려면 `cd <TARGET> && claude`로 **새 세션**을 열어야 그 세션 settings.json hook이 발화한다(공장 세션이 아님).
 
-## 워크플로우
+## 워크플로우 — 4 스테이지 (AWF Research→Planning→Implementation→Evolution ⊃ idoforgod 단계 ⊃ CYS 게이트)
 
-### Phase -1: Warrant 게이트 (필요한가?)
-1. 사용자 요청에서 5개 술어 추출: `{distinct_expertise_domains, has_dependent_or_parallel_stages, will_be_rerun, output_objective, noisy}`.
-2. `python3 warrant.py --predicates <preds.json>` 실행.
-3. 판정:
-   - `answer-directly` → 하네스 없이 직접 답한다. **종료.**
-   - `single-agent` → 단일 에이전트 1회. **종료.**
-   - `build-harness(topology, decision_mechanism, n_agents)` → Phase 0 진행.
+### PRE: Warrant 게이트 (필요한가?)
+5 술어 `{distinct_expertise_domains, has_dependent_or_parallel_stages, will_be_rerun, output_objective, noisy}` → `warrant.py --predicates`. `answer-directly`/`single-agent` → **종료**. `build-harness(topology, decision_mechanism, n_agents)` → RESEARCH.
 
-### Phase 0: 컨텍스트 확인
-`<harness>/` 존재 여부로 초기/재실행/부분재실행/마이그레이션(import) 분기.
+### STAGE 1 — RESEARCH (수집·분석; 사람 게이트 없음)
+- **R1 상태감사** — `audit_harness.py <TARGET>` → `.harness/audit.json {branch ∈ new/extend/maintain, drift[]}`. drift = 디스크 agents/skills ↔ graph 계약의 결정론 set-diff(idoforgod는 산문, CYS는 검증 가능한 사실).
+- **R2 도메인 분해** — 노드(id, 역할, inputs/outputs, write_paths), 사용자 숙련도 감지, 기존 에이전트/스킬 중복검토(R1 인벤토리 대조).
+- **R3 토폴로지+모드 분석** — 7 토폴로지(pipeline/dispatch/fan-out-fan-in/producer-reviewer/supervisor/expert-pool/hierarchical) + `execution_mode`(team 기본/hybrid). *분석만* — 아직 graph 미작성.
+- **R4 모델티어** — 역할 → `model-tier-policy.js` role-class → tier. `n_agents ≤ MAX_FANOUT(5)`.
 
-### Phase 1: 도메인 분해
-1. 작업을 노드로 분해 (id, 역할명, inputs/outputs, write_paths).
-2. 각 역할명을 `model-tier-policy.js`의 role-class에 매핑 → `resolveModel()`로 model 티어 확정.
-3. `n_agents ≤ MAX_FANOUT(5)` 확인 (초과 시 도메인 묶기/2단계 합성).
+### STAGE 2 — PLANNING (계약 저작 + 단일 사람 승인)
+- **P1 graph.json 저작 (단일 writer)** — **이 스킬만이 graph.json을 쓴다.** `graph.schema.json` 준수. 노드별: `model, decision_mechanism, mechanism_params, output_schema, write_paths` + **`skill_authoring{mode:inline|skill, reason}`**(하이브리드, locked-5) + `review{agent}`. top: `execution_mode`(team/hybrid), `topology`(7), `budget`.
+- **P2 schema 저작** — node.output_schema → `schemas/<name>.json`(draft 2020-12, bare-filename $id, additionalProperties:false).
+- **P3 팀 아키텍처 확정** — topology + execution_mode + 팀 구성/역할 확정 (all-6 floor 충족).
+- **P4 비용밴드** — `warrant.py --graph` (team-aware).
+- **P5 ⛔ 사람 승인 게이트 (AWF + CYS)** — 계획(토폴로지·에이전트·`skill_authoring`·R1 드리프트) + 비용밴드를 제시 → 사용자 승인 대기. **Implementation은 승인 전 실행 금지.**
 
-### Phase 2: graph.json 저작 (단일 writer)
-**이 스킬만이 graph.json을 쓴다.** `graph.schema.json` 준수. `harness_version=0.1.0`. `budget.total_tokens`=warrant 추정(+여유). topology/decision_mechanism=warrant 제안.
+### STAGE 3 — IMPLEMENTATION (실제 발화하는 하네스 emit)
+- **I1 agent 생성** — node → `.claude/agents/<agent>.md`: frontmatter(name/description/**model**/**model_rationale**/tools=least-privilege/maxTurns) + 본문(역할/원칙/입출력[정확한 _workspace 경로 + schema]/에러핸들링/팀-통신). model은 **티어 해석**(전체 opus 아님 — `TIER_OVERSPEND` 강제).
+- **I2 도메인 스킬 (하이브리드)** — `emit_domain_skill.py`: `skill_authoring.mode='skill'` 노드만 `.claude/skills/<harness>-<id>/SKILL.md`(how, pushy description). `inline`은 agent 본문. (emit_orchestrator가 자동 호출.)
+- **I3 오케스트레이터 + emit** — `emit_orchestrator.py <TARGET>`: `<domain>-orchestrator/SKILL.md`(execution_mode로 분기 — **team이면 실제 TeamCreate/TaskCreate(deps)/SendMessage/TeamDelete emit**, 메모리 운영·진화 섹션 포함) + agent stamps + **게놈전수 + 메모리 store init** + `RUNTIME.json`(orchestrator-canonical) + `CLAUDE.md` 포인터. **`workflow.js` 미emit.**
+- **I4 게놈 발화** — `inherit_genome.py`(자동): hooks를 자식 `settings.json`에 배선 → Context Preservation(스냅샷/복원)·**L0-L2(`qa_gate_runner`)·budget(`budget_block`+`spawn_counter`)·SOT(`sot_init`)·적대적 reviewer/fact-checker**가 실세션에서 *발화*. prompt-runner는 보관-but-비활성.
+- **I5 검증 게이트** — `validate_harness.py <TARGET>` → **error 시 생성 중단·보고**(고치고 재실행).
+- **I6 측정·테스트** — with/without **lift**(`lift_gate.py`, skill 노드는 측정 필요 — `LIFT_UNMEASURED`), 트리거 near-miss(should/should-NOT), dry-run(dead-link).
 
-### Phase 3: agent 파일 + schema 저작
-1. 각 node.agent → `.claude/agents/<agent>.md`: frontmatter(name/description/**model**/**model_rationale**/tools=least-privilege) + 본문(핵심역할/작업원칙/입출력 프로토콜[정확한 _workspace 경로 + 방출 schema]/에러핸들링).
-2. 각 node.output_schema → `schemas/<name>.json` (draft 2020-12, bare-filename $id, additionalProperties:false). reflect-then-revise 노드는 `schemas/critique.json`도 필요.
-
-### Phase 4: 오케스트레이터 SKILL + emit
-1. `.claude/skills/<domain>-orchestrator/SKILL.md` — graph의 사람용 뷰 (phase-count는 README와 일치).
-2. `python3 emit_workflow.py <harness>` → `.harness/workflow.js` (Mode A 런타임).
-3. `.harness/harness.lock`(write_paths→node 맵), `.harness/MANIFEST.json`(최소 provenance) 저작.
-4. `.claude/settings.json` — SubagentStop 토큰 로그 hook.
-
-### Phase 5: 검증 게이트
-1. `python3 validate_harness.py <harness>` → **error 시 생성 중단·보고**(고치고 재실행).
-2. README phase-count == 오케스트레이터 SKILL phase-count 확인(DOC_DRIFT).
-
-### Phase 6: 비용 승인 + 실행
-1. `python3 warrant.py --graph <harness>/.harness/graph.json` → 토큰/USD 밴드 표시.
-2. **사용자 승인 대기**(approval_required=true).
-3. `Workflow({ scriptPath: "<harness>/.harness/workflow.js", args: {...} })`. `budget.total`이 하드 ceiling.
-4. 중단 시 `resumeFromRunId`로 재개(변경 노드부터).
-
-### Phase 7: git + 헤드투헤드(선택)
-1. `git init && git add -A && git commit` (rollback substrate).
-2. head-to-head: `evals/<domain>.scorecard.json` 기준 C2(CYS) vs C3(no-harness) 1회 → 능가 or 정직 미달 보고.
+### STAGE 4 — EVOLUTION (실행 + 학습; idoforgod Phase 7 + CYS 측정)
+- **E1 git** — `git init && git add -A && git commit`.
+- **E2 head-to-head (선택)** — `evals/<domain>.scorecard.json` C2(이 하네스) vs C3(no-harness) n-run → `h2h_aggregate.py`(median, 15pp margin). 8 use case parity는 `eval_topology.py`. `MEASUREMENT_DRIFT`가 정직성 강제(현재 stamped: **n=5 +12.5pp INCONCLUSIVE — CYS 우세, 마진 미달**).
+- **E3-E6 진화** — `evolve_harness.py`: 피드백 유형→대상 라우팅 + `.harness/change-history.jsonl`(append-only) + `--proactive`(같은 유형 2회↑ 자동 제안) + 유지보수(재감사→한 번에 하나 수정→재검증→CLAUDE.md 동기화). 라우팅된 수정은 해당 Implementation 단계 재진입 후 **validate 재통과**(진화가 계약을 퇴행시키지 못함).
 
 ## 산출 체크리스트
-- [ ] `.harness/graph.json` (schema 통과) · `workflow.js` (emit, 수정금지)
-- [ ] `.claude/agents/*.md` (model + model_rationale + least-privilege tools)
-- [ ] `schemas/*.json` (workflow.js S-table와 일치)
-- [ ] 오케스트레이터 SKILL.md · README (phase-count 일치)
-- [ ] `validate_harness.py` PASS (exit 0)
-- [ ] warrant 비용밴드 승인 후 실행
-- [ ] 절대경로 없음 · model:opus 전역 아님 · 게놈 상속 commands는 정상(NO_COMMANDS 규칙 폐기, 새 도메인 커맨드는 직접 만들지 않음)
-- [ ] git repo 초기화
+- [ ] `.harness/graph.json`(schema 통과) — **`workflow.js` 없음**(은퇴)
+- [ ] `.claude/agents/*.md`(model + rationale + least-priv tools) · review 노드면 reviewer/fact-checker 존재
+- [ ] `skill_authoring=skill` 노드의 `.claude/skills/<harness>-<id>/` + `<domain>-orchestrator` skill
+- [ ] orchestrator SKILL: team이면 **TeamCreate/SendMessage 실제 emit**, **메모리 운영·진화** 섹션 포함, graceful-degrade 명시
+- [ ] `validate_harness.py` **PASS 0/0** — all-6·메모리store·QA hook·런타임매니페스트 clean
+- [ ] `.harness/memory/`(Tier II) + `.claude/context-snapshots/`(Tier I) + `.harness/state.yaml`(SOT)
+- [ ] warrant 비용밴드 **사람 승인** 후 실행, `git init`
+- [ ] 절대경로 없음 · model:opus 전역 아님
 
 ## 도구 (cys-harness-creator/)
-- `warrant.py` — Phase -1 게이트 + 토큰 비용밴드
-- `model-tier-policy.js` — role→tier SoT + V1/V2/V3 규칙
-- `graph.schema.json` — graph.json 계약 스키마
-- `emit_workflow.py` — graph.json → workflow.js (Mode A)
-- `validate_harness.py` — 정적 게이트
-- `constants.json` — 튜너블 상수 SoT
-- `lib/toposort.py` — 결정론 토소트(emitter+validator 공용)
-- `examples/deep-research/` — M0 dogfood + 첫 헤드투헤드 fixture
+- `warrant.py` — PRE 게이트 + 비용밴드 · `model-tier-policy.js` — role→tier SoT · `graph.schema.json` — 계약 스키마 · `lib/toposort.py` — 결정론 토소트
+- `audit_harness.py` — R1 상태감사 · `emit_orchestrator.py` — I3 emit(team/agent/hybrid) · `emit_domain_skill.py` — I2 도메인 스킬(하이브리드) · `inherit_genome.py` — I4 게놈+메모리 전수 · `validate_harness.py` — I5 게이트(~36 코드)
+- `lift_gate.py` · `h2h_aggregate.py` · `eval_topology.py`(8 use case parity) — E2 측정 · `evolve_harness.py` — E3-E6 진화
+- `templates/hooks/` — `gate_or_block`·`budget_block`·`spawn_counter`·`sot_init`·`qa_gate_runner`(런타임 발화)
+- `emit_workflow.py` — **공장내부 측정 전용**(제품 emit 아님) · `examples/` — 4 작동 예시(team 모드)
 
-## 참고 — 설계 두뇌 (references/, 필요 시 Read로 로드; progressive disclosure)
-
-> 원본 harness의 6개 reference를 CYS 패러다임으로 적응 이식(2,500+줄). **구현 현황은 `IMPLEMENTATION-STATUS.md`가 모든 서술에 우선.**
-
-- `references/IMPLEMENTATION-STATUS.md` — **먼저 읽기.** M0 실구현 / M1-deferred(dispatch dynamic·expert-pool·hierarchical 등) / 폐기규칙(NO_COMMANDS 등). 다른 문서의 aspirational 서술에 우선.
-- `references/architecture-patterns.md` — Phase 1~2: topology(3)×decision-mechanism(4) 선택, 원본 6패턴 매핑, 에이전트 분리 4축, Mode-A/B 선택.
-- `references/graph-and-orchestration.md` — Phase 2·5: graph.json 저작 템플릿 + emit + 데이터전달(inputs/outputs/_workspace) + on_exhaust 에러핸들링 + RUNTIME 라우팅.
-- `references/skill-writing-guide.md` — Phase 3~4: agent/오케스트레이터 skill 작성, pushy description, Why-not-ALWAYS, output_schema(머신검증) 설계.
-- `references/testing-and-measurement.md` — Phase 5~6: validate 게이트, lift_gate(독립 블라인드), h2h, 트리거 near-miss 검증.
-- `references/qa-guide.md` — QA 경계면 교차비교 + 7 버그패턴 + verify-before-assert + finding triage.
-- `references/examples.md` — 3 작동 예시(deep-research/ticket-triage/design-decision)의 graph.json으로 배우기.
+## 참고 — references/ (필요 시 Read; **`IMPLEMENTATION-STATUS.md`가 모든 서술에 우선**)
+- `IMPLEMENTATION-STATUS.md` — **먼저 읽기.** 실구현/연기/폐기 현황.
+- `architecture-patterns.md` — R3/P3: 토폴로지×메커니즘 선택, 에이전트 분리 4축, 8 use case→토폴로지.
+- `graph-and-orchestration.md` — P1/I3: graph.json 저작 + emit + 데이터전달 + RUNTIME 라우팅.
+- `skill-writing-guide.md` — I1/I2: agent/스킬 작성, pushy description, Why-not-ALWAYS, output_schema.
+- `testing-and-measurement.md` — I6/E2: validate·lift·h2h(n=5 +12.5pp INCONCLUSIVE)·트리거 near-miss.
+- `qa-guide.md` — QA 경계교차 + 7 버그패턴 + verify-before-assert.
+- `examples.md` — 작동 예시 graph.json으로 배우기.
