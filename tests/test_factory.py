@@ -568,5 +568,178 @@ class TestPivotHooks(unittest.TestCase):
         self.assertFalse(b.decide(0, None, 1)[0])  # no max -> advisory pass
 
 
+class TestInProjectInstall(unittest.TestCase):
+    """P1.2/B2: `--in-project` installs the harness as an ADDITIVE OVERLAY into an existing host project —
+    the host's own root files are preserved, the genome constitution is relocated under .harness/genome/,
+    runtime log dirs nest under .harness/, and validate passes in-project mode. Self-contained pour unchanged."""
+
+    def _graph(self):
+        return {"schema_version": "0.1", "harness_name": "hostfit", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [
+                    {"id": "gather", "agent": "hostfit-gatherer", "model": "haiku", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/g.json"],
+                     "write_paths": ["_workspace/g/"], "output_schema": "schemas/g.json",
+                     "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                    {"id": "synth", "agent": "hostfit-synth", "model": "opus", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                     "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                     "review": {"agent": "reviewer"}, "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+                "edges": [{"from": "gather", "to": "synth"}]}
+
+    def _host(self, td, g):
+        """A realistic pre-existing host project: own root docs, own agent, own skill, own settings."""
+        os.makedirs(os.path.join(td, ".harness"))
+        os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        for s in ("g", "s"):
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", s + ".json"), "w"))
+        open(os.path.join(td, "CLAUDE.md"), "w").write("# HOST CLAUDE\nhost-specific instructions\n")
+        open(os.path.join(td, "README.md"), "w").write("# Host Project\nthe host's own readme\n")
+        open(os.path.join(td, "AGENTS.md"), "w").write("# HOST AGENTS\nhost agent registry\n")
+        open(os.path.join(td, "soul.md"), "w").write("# HOST SOUL\n")
+        os.makedirs(os.path.join(td, ".claude", "agents"))
+        open(os.path.join(td, ".claude", "agents", "reviewer.md"), "w").write(
+            "---\nname: reviewer\ndescription: \"host reviewer\"\nmodel: opus\n---\nHOST REVIEWER BODY\n")
+        open(os.path.join(td, ".claude", "agents", "my-host-helper.md"), "w").write(
+            "---\nname: my-host-helper\ndescription: \"host helper\"\nmodel: haiku\n---\nHOST HELPER BODY\n")
+        os.makedirs(os.path.join(td, ".claude", "skills", "host-skill"))
+        open(os.path.join(td, ".claude", "skills", "host-skill", "SKILL.md"), "w").write(
+            "---\nname: host-skill\ndescription: host\n---\nbody\n")
+        # a host-tuned security hook of a genome-shared name must NOT be clobbered
+        os.makedirs(os.path.join(td, ".claude", "hooks", "scripts"))
+        open(os.path.join(td, ".claude", "hooks", "scripts", "block_destructive_commands.py"), "w").write(
+            "# HOST-TUNED HOOK\ndef host_marker():\n    return 'Bash(terraform destroy*)'\n")
+        json.dump({"hooks": {"PreToolUse": [{"matcher": "Bash",
+                   "hooks": [{"type": "command", "command": "echo HOSTHOOK"}]}]},
+                   "permissions": {"allow": ["Bash(ls:*)"]}},
+                  open(os.path.join(td, ".claude", "settings.json"), "w"))
+
+    def test_overlay_preserves_host_and_validates(self):
+        g = self._graph()
+        with tempfile.TemporaryDirectory() as td:
+            self._host(td, g)
+            errs = emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+            self.assertEqual(errs, [], "genome verify must pass in-project: %s" % errs)
+            rd = lambda *p: open(os.path.join(td, *p), encoding="utf-8").read()
+            # host root files PRESERVED (not clobbered by the genome)
+            self.assertIn("host-specific", rd("CLAUDE.md"))
+            self.assertIn("CYS Harness Engine (inherited", rd("CLAUDE.md"), "CYS pointer appended to host CLAUDE.md")
+            self.assertEqual(rd("README.md"), "# Host Project\nthe host's own readme\n", "host README untouched")
+            self.assertIn("host agent registry", rd("AGENTS.md"), "host AGENTS.md preserved")
+            self.assertIn("HOST SOUL", rd("soul.md"), "host soul.md preserved")
+            self.assertIn("HOST HELPER BODY", rd(".claude", "agents", "my-host-helper.md"),
+                          "host's own agent must NOT be clobbered (--ignore-existing)")
+            self.assertIn("host-skill", rd(".claude", "skills", "host-skill", "SKILL.md"), "host skill preserved")
+            # host-tuned security hook of a genome-shared name preserved (hooks are non-clobber too)
+            self.assertIn("HOST-TUNED HOOK", rd(".claude", "hooks", "scripts", "block_destructive_commands.py"),
+                          "host-tuned security hook must NOT be clobbered")
+            # mandatory L2 agent (reviewer) force-installed from GENOME; host's version preserved (backed up)
+            self.assertNotIn("HOST REVIEWER BODY", rd(".claude", "agents", "reviewer.md"),
+                             "reviewer must be the genome adversarial agent (L2 DNA), not the host's")
+            self.assertIn("HOST REVIEWER BODY", rd(".harness", "genome", "displaced", "reviewer.md"),
+                          "displaced host reviewer must be backed up, never destroyed")
+            # genome did NOT dump into the host root
+            for noisy in ("prompt-runner", "prompt", "DECISION-LOG.md", "GEMINI.md",
+                          "AGENTICWORKFLOW-ARCHITECTURE-AND-PHILOSOPHY.md", "translations"):
+                self.assertFalse(os.path.exists(os.path.join(td, noisy)),
+                                 "genome %s must not land at the host root" % noisy)
+            # constitution RELOCATED under .harness/genome/ ; docs/ co-located
+            for c in ("soul.md", "AGENTS.md", "CLAUDE.md"):
+                self.assertTrue(os.path.isfile(os.path.join(td, ".harness", "genome", c)),
+                                ".harness/genome/%s (relocated constitution)" % c)
+            self.assertTrue(os.path.isdir(os.path.join(td, ".harness", "genome", "docs")), "docs/ co-located")
+            # harness README/harness.md relocated under .harness/ (host root never gets them)
+            self.assertTrue(os.path.isfile(os.path.join(td, ".harness", "README.md")))
+            self.assertTrue(os.path.isfile(os.path.join(td, ".harness", "harness.md")))
+            self.assertFalse(os.path.isfile(os.path.join(td, "harness.md")), "no harness.md at host root")
+            # node agents written with the provenance marker; genome capability agents added (non-clobber)
+            self.assertIn("cys_emitted", rd(".claude", "agents", "hostfit-gatherer.md"))
+            self.assertTrue(os.path.isfile(os.path.join(td, ".claude", "agents", "fact-checker.md")),
+                            "genome fact-checker added (host lacked it)")
+            # runtime log dirs nested under .harness/, not the host root
+            self.assertTrue(os.path.isdir(os.path.join(td, ".harness", "pacs-logs")))
+            self.assertFalse(os.path.exists(os.path.join(td, "pacs-logs")), "no pacs-logs/ at host root")
+            # settings: host hook + permissions preserved; genome hooks + security denies unioned in
+            s = json.load(open(os.path.join(td, ".claude", "settings.json")))
+            self.assertIn("HOSTHOOK", json.dumps(s["hooks"]), "host hook preserved")
+            self.assertIn("context_guard", json.dumps(s["hooks"]), "genome hooks unioned")
+            self.assertEqual(s["permissions"]["allow"], ["Bash(ls:*)"], "host permissions preserved")
+            self.assertTrue(s.get("permissions", {}).get("deny"), "genome security deny-list adopted (parity)")
+            # marker stamped + in-project validate PASSES with 0 errors
+            self.assertEqual(json.load(open(os.path.join(td, ".harness", "GENOME.json")))["install_mode"], "in-project")
+            errors = [i for i in validate_harness.validate(td).items if i["level"] == "error"]
+            self.assertEqual(errors, [], "in-project harness must validate 0 errors: %s" % errors)
+
+    def test_host_agent_collision_refused(self):
+        # a node.agent colliding with a host-owned agent (no cys_emitted marker) must be refused, not hijacked
+        g = self._graph(); g["nodes"][0]["agent"] = "my-host-helper"   # collides with host's own agent
+        with tempfile.TemporaryDirectory() as td:
+            self._host(td, g)
+            with self.assertRaises(SystemExit):
+                emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+
+    def test_nonobject_settings_does_not_crash(self):
+        # adversarial finding: a host settings.json that is valid JSON but NOT an object must not crash emit
+        g = self._graph()
+        for content in ("[]", "null", "42", "\"hi\""):
+            with tempfile.TemporaryDirectory() as td:
+                self._host(td, g)
+                open(os.path.join(td, ".claude", "settings.json"), "w").write(content)
+                errs = emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+                self.assertEqual(errs, [], "non-object settings %r must degrade gracefully" % content)
+                self.assertIn("context_guard", json.dumps(json.load(
+                    open(os.path.join(td, ".claude", "settings.json")))), "genome hooks wired")
+
+    def test_unparseable_settings_refused(self):
+        # adversarial finding: never SILENTLY replace an unparseable host settings.json — refuse instead
+        g = self._graph()
+        with tempfile.TemporaryDirectory() as td:
+            self._host(td, g)
+            open(os.path.join(td, ".claude", "settings.json"), "w").write("{ not valid json ]")
+            with self.assertRaises(SystemExit):
+                emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+
+    def test_mode_flip_refused_both_directions(self):
+        # adversarial finding: re-emitting a dir in the OTHER install mode must be refused (host-clobber guard)
+        g = self._graph()
+        with tempfile.TemporaryDirectory() as td:        # self-contained -> in-project
+            os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            for s in ("g", "s"):
+                json.dump({"type": "object"}, open(os.path.join(td, "schemas", s + ".json"), "w"))
+            emit_orchestrator.emit_orchestrator(g, td, in_project=False)
+            with self.assertRaises(SystemExit):
+                emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+        with tempfile.TemporaryDirectory() as td:        # in-project -> self-contained (the host-destroying flip)
+            self._host(td, g)
+            emit_orchestrator.emit_orchestrator(g, td, in_project=True)
+            with self.assertRaises(SystemExit):
+                emit_orchestrator.emit_orchestrator(g, td, in_project=False)
+            self.assertEqual(open(os.path.join(td, "README.md")).read(), "# Host Project\nthe host's own readme\n",
+                             "refused self-contained re-emit must leave the host README intact")
+
+    def test_self_contained_keeps_root_layout(self):
+        # the default (self-contained) pour is unchanged: constitution + harness.md at the ROOT, marker says so
+        g = self._graph()
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            for s in ("g", "s"):
+                json.dump({"type": "object"}, open(os.path.join(td, "schemas", s + ".json"), "w"))
+            errs = emit_orchestrator.emit_orchestrator(g, td, in_project=False)
+            self.assertEqual(errs, [])
+            self.assertTrue(os.path.isfile(os.path.join(td, "soul.md")), "self-contained keeps constitution at root")
+            self.assertTrue(os.path.isfile(os.path.join(td, "harness.md")), "self-contained harness.md at root")
+            self.assertFalse(os.path.isdir(os.path.join(td, ".harness", "genome")), "no relocation when self-contained")
+            self.assertNotIn("cys_emitted", open(os.path.join(td, ".claude", "agents", "hostfit-gatherer.md")).read(),
+                             "self-contained agents carry no in-project marker")
+            self.assertEqual(json.load(open(os.path.join(td, ".harness", "GENOME.json")))["install_mode"],
+                             "self-contained")
+            errors = [i for i in validate_harness.validate(td).items if i["level"] == "error"]
+            self.assertEqual(errors, [], "self-contained must still validate 0 errors: %s" % errors)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

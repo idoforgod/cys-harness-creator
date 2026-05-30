@@ -71,10 +71,13 @@ def _tools_for(node):
     return _ROLE_TOOLS.get(_role_class_of(node), "Read, Glob, Grep")
 
 
-def _write_agent_files(graph, harness_dir):
+def _write_agent_files(graph, harness_dir, in_project=False):
     """Ensure each node.agent has .claude/agents/<agent>.md with RUNTIME-bound frontmatter
     (model=node.model, tools allowlist, maxTurns). Preserves any existing hand-written body
-    and description; only normalizes the runtime-enforced fields."""
+    and description; only normalizes the runtime-enforced fields.
+
+    in_project: stamp a `cys_emitted` provenance marker and REFUSE to overwrite a same-named host agent
+    that lacks it (an in-project install must never hijack the host's own .claude/agents/<x>.md)."""
     adir = os.path.join(harness_dir, ".claude", "agents")
     os.makedirs(adir, exist_ok=True)
     for n in graph["nodes"]:
@@ -82,6 +85,11 @@ def _write_agent_files(graph, harness_dir):
         existing_fm, body = ({}, "")
         if os.path.isfile(path):
             existing_fm, body = _split_frontmatter(open(path, encoding="utf-8").read())
+            if in_project and not existing_fm.get("cys_emitted"):
+                raise SystemExit(
+                    "in-project collision: .claude/agents/%s.md already exists and is host-owned "
+                    "(no cys_emitted marker) — rename graph node '%s'.agent so the install does not "
+                    "clobber the host's agent" % (n["agent"], n["id"]))
         rc = _role_class_of(n)
         desc = existing_fm.get("description") or (
             "%s-class worker for the %s harness (node '%s'). Spawned by the orchestrator via the "
@@ -94,6 +102,7 @@ def _write_agent_files(graph, harness_dir):
         if not body.strip():
             body = ("핵심 역할: %s 노드의 작업을 수행한다.\n\n작업 원칙: 입력(직전 노드 출력)을 받아 "
                     "output_schema에 맞는 JSON만 반환한다. 도구는 frontmatter allowlist로 제한된다.\n" % n["id"])
+        marker = ("cys_emitted: \"%s\"\n" % graph["harness_name"]) if in_project else ""
         fm = ("---\n"
               "name: %s\n"
               "description: \"%s\"\n"
@@ -101,8 +110,9 @@ def _write_agent_files(graph, harness_dir):
               "model_rationale: \"%s\"\n"
               "tools: %s\n"
               "maxTurns: %s\n"
+              "%s"
               "---\n" % (n["agent"], desc.replace('"', "'"), n["model"],
-                         rationale.replace('"', "'"), tools, maxturns))
+                         rationale.replace('"', "'"), tools, maxturns, marker))
         atomic_write(path, fm + body.rstrip("\n") + "\n")
 
 
@@ -375,10 +385,15 @@ def _harness_md(graph, order):
             "execution_mode=%s, %d nodes.\n" % (graph["harness_name"], graph["execution_mode"], len(graph["nodes"])))
 
 
-def _runtime_manifest(graph):
+def _runtime_manifest(graph, in_project=False):
     name = graph["harness_name"]
+    launch = (("trigger the %s-orchestrator skill inside the host project's `claude` session — in-project "
+               "overlay: this harness is one capability of the host, not the host root's own runtime" % name)
+              if in_project else
+              "cd <harness_dir> && claude   # THAT session's settings.json hooks fire (not the factory's)")
     return {
         "schema_version": "0.1",
+        "install_mode": "in-project" if in_project else "self-contained",
         "canonical_runtime": "%s-orchestrator" % name,
         "runtimes": [
             {"name": "%s-orchestrator" % name, "role": "canonical",
@@ -387,7 +402,7 @@ def _runtime_manifest(graph):
              "kind": "prose-driven, genome-active (hooks/L0-L2/SOT fire), graph.json-contracted, semantic-resume",
              "wired_to": "graph.json (this harness's contract) via emit_orchestrator",
              "use_when": "default — ALL of this harness's work runs as a live session driven by this skill",
-             "launch": "cd <harness_dir> && claude   # THAT session's settings.json hooks fire (not the factory's)"},
+             "launch": launch},
         ],
         # M0/locked-3 (RUNTIME_MANIFEST_CLEAN): the produced harness has exactly ONE execution runtime —
         # the orchestrator skill (100% Claude Code primitives). The retired Mode-A workflow.js and the
@@ -400,34 +415,56 @@ def _runtime_manifest(graph):
     }
 
 
-def emit_orchestrator(graph, harness_dir):
+def emit_orchestrator(graph, harness_dir, in_project=False):
     assert graph["execution_mode"] in ("agent", "team", "hybrid"), \
         "emit_orchestrator handles primitive substrate; execution_mode='workflow' -> emit_workflow.py"
+    # mode-flip guard: a dir already installed in one mode must not be re-emitted in the other. An
+    # in-project->self-contained re-emit would pour the genome over the host root and DESTROY host files;
+    # the reverse would false-trip the agent collision guard. Refuse cleanly (start fresh to change modes).
+    gj = os.path.join(harness_dir, ".harness", "GENOME.json")
+    if os.path.isfile(gj):
+        try:
+            prior = json.load(open(gj, encoding="utf-8")).get("install_mode")
+        except ValueError:
+            prior = None
+        want = "in-project" if in_project else "self-contained"
+        if prior and prior != want:
+            raise SystemExit(
+                "install-mode mismatch: %s was built as '%s' but emit was requested as '%s' — re-run with the "
+                "matching mode (or build into a clean dir). Refusing to avoid clobbering." % (harness_dir, prior, want))
     order = toposort(graph["nodes"], graph["edges"])
-    # 1) agent files with runtime-bound frontmatter
-    _write_agent_files(graph, harness_dir)
+    # 1) agent files with runtime-bound frontmatter (in-project: collision-guarded + provenance-marked)
+    _write_agent_files(graph, harness_dir, in_project)
     # 1.5) domain skills (M3 hybrid): author .claude/skills/<harness>-<id> for skill_authoring.mode='skill'
     from emit_domain_skill import emit_domain_skills
     emit_domain_skills(graph, harness_dir)
-    # 2) orchestrator skill + README + schemas-presence check
+    # 2) orchestrator skill + README. In-project, README/harness.md go under .harness/ so the host's own
+    #    root README.md / files are never clobbered (W1_GENOME + doc-drift read the relocated paths).
     skill_dir = os.path.join(harness_dir, ".claude", "skills", graph["harness_name"] + "-orchestrator")
     os.makedirs(skill_dir, exist_ok=True)
     atomic_write(os.path.join(skill_dir, "SKILL.md"), _orchestrator_skill(graph, order))
-    atomic_write(os.path.join(harness_dir, "README.md"), _readme(graph))
+    readme_path = os.path.join(harness_dir, ".harness", "README.md") if in_project \
+        else os.path.join(harness_dir, "README.md")
+    if in_project:
+        os.makedirs(os.path.join(harness_dir, ".harness"), exist_ok=True)
+    atomic_write(readme_path, _readme(graph))
     # 3) genome transplant (orchestrator-canonical RUNTIME) — wakes hooks/gates/SOT
-    errs = inherit(harness_dir, runtime_manifest=_runtime_manifest(graph))
+    errs = inherit(harness_dir, runtime_manifest=_runtime_manifest(graph, in_project), in_project=in_project)
     # 4) post-inherit: merge categorization (genome + domain agents) + harness.md genome viz
     _categorization_merge(harness_dir, graph)
-    atomic_write(os.path.join(harness_dir, "harness.md"), _harness_md(graph, order))
+    hm_path = os.path.join(harness_dir, ".harness", "harness.md") if in_project \
+        else os.path.join(harness_dir, "harness.md")
+    atomic_write(hm_path, _harness_md(graph, order))
     return errs
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("usage: emit_orchestrator.py <harness_dir>", file=sys.stderr); sys.exit(2)
-    hd = os.path.abspath(sys.argv[1])
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if not args:
+        print("usage: emit_orchestrator.py <harness_dir> [--in-project]", file=sys.stderr); sys.exit(2)
+    hd = os.path.abspath(args[0])
     graph = _load(os.path.join(hd, ".harness", "graph.json"))
-    errs = emit_orchestrator(graph, hd)
+    errs = emit_orchestrator(graph, hd, in_project="--in-project" in sys.argv)
     if errs:
         print("emitted orchestrator for %s; GENOME VERIFY FAILED:" % graph["harness_name"])
         for e in errs:

@@ -101,6 +101,21 @@ def validate(harness_dir):
         return r
     graph = json.load(open(gpath))
 
+    # install_mode marker (P1.2/B2): in-project installs preserve the HOST's root files and relocate the
+    # genome constitution + the harness README/harness.md under .harness/, so the root-ownership checks
+    # (GENOME_PRESENT root docs, W1_GENOME, doc/measurement drift) must follow the relocated paths.
+    in_project = False
+    gj = os.path.join(harness_dir, ".harness", "GENOME.json")
+    _relocated = os.path.isfile(os.path.join(harness_dir, ".harness", "genome", "CLAUDE.md"))
+    if os.path.isfile(gj):
+        try:
+            mode = json.load(open(gj)).get("install_mode")
+            # corrupt or keyless GENOME.json must NOT silently fall back to self-contained checks against an
+            # in-project layout — detect in-project structurally (relocated constitution) before defaulting.
+            in_project = (mode == "in-project") or (mode is None and _relocated)
+        except ValueError:
+            in_project = _relocated
+
     # GRAPH_SCHEMA
     try:
         import jsonschema
@@ -215,13 +230,13 @@ def validate(harness_dir):
     # inherits the full AWF genome. (Removed per the full-inheritance decision.)
 
     # DOC_DRIFT: README phase-count == orchestrator SKILL phase-count
-    _doc_drift(harness_dir, r)
+    _doc_drift(harness_dir, r, in_project)
 
     # GENOME (AWF DNA graft, D0+D1): inherited-DNA section + L0 security hooks
-    _genome_checks(harness_dir, r, graph)
+    _genome_checks(harness_dir, r, graph, in_project)
 
     # MEASUREMENT_DRIFT: a harness doc must not advertise CYS-WINS unless an evals verdict shows it
-    _measurement_drift(harness_dir, r)
+    _measurement_drift(harness_dir, r, in_project)
 
     # AUDIT_VERDICT_PRESENT (M4): if a Phase-0 audit was produced, it must be well-formed (branch in
     # {new,extend,maintain} + a drift list). Optional — a fresh 'new' build needn't run audit_harness.
@@ -268,7 +283,7 @@ def validate(harness_dir):
     return r
 
 
-def _measurement_drift(harness_dir, r):
+def _measurement_drift(harness_dir, r, in_project=False):
     """Honesty gate (the +37.5pp lesson): if the harness ships h2h verdicts and NONE is
     CYS-WINS, no in-harness doc (README / orchestrator SKILL) may advertise 'CYS-WINS'."""
     edir = os.path.join(harness_dir, "evals")
@@ -283,7 +298,10 @@ def _measurement_drift(harness_dir, r):
                 pass
     if not verdicts or "CYS-WINS" in verdicts:
         return  # no verdicts, or it genuinely wins -> win claims are allowed
-    docs = [os.path.join(harness_dir, "README.md")]
+    # in-project: the harness readme is .harness/README.md; the host's root README is NOT a harness claim surface
+    readme = os.path.join(harness_dir, ".harness", "README.md") if in_project \
+        else os.path.join(harness_dir, "README.md")
+    docs = [readme]
     sk = os.path.join(harness_dir, ".claude", "skills")
     if os.path.isdir(sk):
         for d in os.scandir(sk):
@@ -296,27 +314,36 @@ def _measurement_drift(harness_dir, r):
                   % os.path.basename(d), d)
 
 
-def _genome_checks(harness_dir, r, graph=None):
+def _genome_checks(harness_dir, r, graph=None, in_project=False):
     """Verify the FULL AgenticWorkflow genome was inherited (전수/유전), not a subset.
     W1_GENOME: harness.md embeds inherited DNA. GENOME_PRESENT: the load-bearing
-    machinery files transplanted. HOOK_REGISTERED: settings.json wires the AWF hooks."""
-    hm = os.path.join(harness_dir, "harness.md")
+    machinery files transplanted. HOOK_REGISTERED: settings.json wires the AWF hooks.
+
+    in_project: the harness README/harness.md live under .harness/, and the genome constitution is
+    relocated under .harness/genome/ (the host owns its root CLAUDE.md/AGENTS.md/soul.md) — so the
+    root-ownership checks follow the relocated paths instead of requiring the genome at the host root."""
+    hm = os.path.join(harness_dir, ".harness", "harness.md") if in_project \
+        else os.path.join(harness_dir, "harness.md")
     if not os.path.isfile(hm):
-        r.warn("W1_GENOME", "no harness.md (run emit_workflow.py to inject inherited DNA)", hm)
+        r.warn("W1_GENOME", "no harness.md (run emit_orchestrator to inject inherited DNA)", hm)
     else:
         text = open(hm, encoding="utf-8").read()
         missing = [m for m in ("Inherited DNA", "AC-1", "AC-2", "AC-3") if m not in text]
         if missing:
             r.err("W1_GENOME", "harness.md missing inherited-DNA markers: %s" % ", ".join(missing), hm)
-    # GENOME_PRESENT: the machinery a long harness needs must be transplanted (self-contained)
+    # GENOME_PRESENT: the load-bearing machinery must be transplanted. The .claude/hooks/scripts spine is
+    # required in BOTH modes; the ~440KB constitution is at the root (self-contained) or relocated under
+    # .harness/genome/ (in-project — never clobbering the host's own root docs).
     must_exist = [
         ".claude/hooks/scripts/_context_lib.py",        # shared spine the hooks depend on
         ".claude/hooks/scripts/context_guard.py",       # context-preservation dispatcher
         ".claude/hooks/scripts/block_destructive_commands.py",
         ".claude/hooks/scripts/output_secret_filter.py",
         ".claude/hooks/scripts/security_sensitive_file_guard.py",
-        "soul.md", "AGENTS.md", "CLAUDE.md", ".harness/GENOME.json",
+        ".harness/GENOME.json",
     ]
+    constitution = ["soul.md", "AGENTS.md", "CLAUDE.md"]
+    must_exist += [os.path.join(".harness", "genome", c) for c in constitution] if in_project else constitution
     for rel in must_exist:
         if not os.path.isfile(os.path.join(harness_dir, rel)):
             r.err("GENOME_PRESENT", "genome machinery missing (run emit/inherit_genome): %s" % rel, rel)
@@ -462,8 +489,10 @@ def _count_phases(text):
     return len(nums) if nums else None
 
 
-def _doc_drift(harness_dir, r):
-    readme = os.path.join(harness_dir, "README.md")
+def _doc_drift(harness_dir, r, in_project=False):
+    # in-project: the harness readme is .harness/README.md (root README.md is the HOST's, not a drift surface)
+    readme = os.path.join(harness_dir, ".harness", "README.md") if in_project \
+        else os.path.join(harness_dir, "README.md")
     skills_dir = os.path.join(harness_dir, ".claude", "skills")
     skill_md = None
     if os.path.isdir(skills_dir):

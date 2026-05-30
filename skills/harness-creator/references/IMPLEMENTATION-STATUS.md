@@ -2,7 +2,7 @@
 
 > **이 문서가 다른 모든 reference의 aspirational 서술에 우선한다.** reference가 무엇을 설명하든, 실제로 emit/validate에 구현됐는지는 여기로 확정한다. (출처: `emit_orchestrator.py`·`emit_domain_skill.py`·`audit_harness.py`·`evolve_harness.py`·`eval_topology.py`·`inherit_genome.py`·`validate_harness.py`·`templates/hooks/`·`tests/test_factory.py` 실측. 설계 전모: `design/STRATEGY-AND-DESIGN.md`.)
 >
-> **현 상태: 45 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform.**
+> **현 상태: 52 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치(B2) 완료(3-lens 적대적 리뷰 통과).**
 
 ## ✅ 구현·검증 완료 (M0–M8)
 
@@ -40,9 +40,17 @@
 ### 측정 (head-to-head, stamped)
 - **n=5(deep-research) + 다도메인 추가 → median(C2)=1.0 vs median(C3)=0.875 → +12.5pp `INCONCLUSIVE`** (CYS 우세, 15pp 마진 미달). 이전 n=1 −16.67pp `BASELINE-WINS`를 뒤집음. 활성 **L2 적대적 리뷰**가 baseline(no-harness opus)의 A4(미검증 주장 잔존)·A6(통계 날조) 실패를 잡은 것이 격차. **약한 데이터를 날조하지 않음**(+37.5pp 교훈). `evals/deep-research.verdict.json`.
 
+### P1.2 — in-project 오버레이 설치 (B2) ✅
+- `emit_orchestrator.py <TARGET> --in-project`: idoforgod식 **기존 호스트 프로젝트 오버레이 설치**. 자족(self-contained) 기본은 불변.
+- **호스트 보존**: 루트 `CLAUDE.md`(포인터만 append)/`AGENTS.md`/`README.md`/`soul.md`, 호스트 `.claude/agents|skills|config|hooks`(동명 파일은 `rsync --ignore-existing`로 **호스트 우선** — 튜닝된 보안 hook 포함) 절대 미클로버. 노드 agent는 `cys_emitted` provenance 마커 + **동명 호스트 agent 충돌 시 emit 거부**.
+- **L2 DNA 예외(force-install)**: 적대적 리뷰 agent(`reviewer`/`fact-checker`)는 head-to-head 변별력의 핵심이라 **게놈판을 강제 설치**한다(host-wins 비클로버에서 제외). 충돌 시 호스트 원본은 `.harness/genome/displaced/`로 **백업**(파괴 없음) + stderr 통지 → `REVIEW_AGENT_PRESENT`가 "엉뚱한 호스트 reviewer"로 통과하는 것을 방지.
+- **게놈 부분집합**: `.claude/hooks`(런타임 DNA) + `.claude/{agents,skills,config}` 모두 비클로버 union. ~440KB 헌법 + `docs/`는 **`.harness/genome/`로 재배치**(어떤 런타임 hook도 루트 .md를 *읽지 않음* — guarded 문서-동기 lint뿐 — 검증됨). `prompt`/`prompt-runner`/`translations` 미설치. 로그 디렉토리는 `.harness/` 하위.
+- **settings 안전**: 호스트 hook·permissions 보존 + 게놈 hook union + 게놈 `permissions.deny` 보안 union(`_union_perms`). 호스트 settings.json이 **비객체(`[]`/`null`)면 graceful coerce**, **파싱불가면 emit 거부**(호스트 제어 무단 폐기 금지).
+- **모드 전환 가드**: `install_mode` 마커(`.harness/GENOME.json`)로 `validate`가 `GENOME_PRESENT`(루트 vs `.harness/genome/`)·`W1_GENOME`·doc/measurement-drift 경로 자동 분기(마커 손상 시 `.harness/genome/CLAUDE.md` 존재로 구조적 감지). **다른 모드로 재emit은 거부**(in-project↔self-contained 전환 시 호스트 클로버 방지). 재emit idempotent(포인터 1회).
+- **검증**: CLI emit+validate 0/0, **52 factory tests**(+6 in-project), **3-lens 적대적 리뷰**(correctness·host-safety·parity)에서 발견된 4 MAJOR(비객체 settings 크래시·파싱불가 호스트손실·hook 클로버·reviewer 누락) 전부 수정·재현테스트 추가.
+
 ## ⏳ 남은 일 (P1/P2)
 - **references/ 전면 재구성** — `architecture-patterns.md`·`graph-and-orchestration.md` 등에 일부 옛 'workflow.js' 전제 서술 잔존. **본 문서가 우선.** D1의 8-파일 맵(`genome-and-runtime.md`·`evolution-and-memory.md`·`skill-and-agent-authoring.md` 신설)은 후속.
-- **in-project 설치 모드(B2)** — 현재 자족 `<harness>/`만. idoforgod식 기존 프로젝트 `.claude/` 병합 설치 + host hook 안전병합(C3)은 후속.
 - **lift 빌드 배선** — `LIFT_UNMEASURED`는 현재 warn(측정 인프라 결합). 측정 자동화 후 error 승격.
 - **라이브 풀세션 end-to-end 증명** — emit 후 `cd <harness> && claude` 실세션에서 전 DNA(게이트·메모리·팀) 발화 재확인.
 - **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차).
