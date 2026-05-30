@@ -168,6 +168,33 @@ def _team_recipe(graph, order):
         % (name, members, tasks))
 
 
+def _topology_addendum(graph):
+    """Topology-specific Phase-2 prose for the 4 topologies beyond plain pipeline/dispatch
+    (M2-2: supervisor / expert-pool / hierarchical first-class emit targets + fan-out/fan-in).
+    Appended to the mode-based phase-2 body; validate: TOPOLOGY_PRIMITIVE_CONSISTENCY."""
+    topo = graph.get("topology")
+    if topo == "fan-out-fan-in":
+        return ("\n\n### 토폴로지: fan-out/fan-in (병렬 수집 → 합성)\n"
+                "독립 작업을 팀(`TeamCreate` + 무의존 `TaskCreate`)으로 병렬 실행하고 `SendMessage`로 상충을 "
+                "공유한다. Lead가 `_workspace/`에서 결과를 수집해 합성 sub-agent로 통합한 뒤 `TeamDelete`.\n")
+    if topo == "supervisor":
+        return ("\n\n### 토폴로지: supervisor (동적 작업 할당)\n"
+                "Team Lead가 **supervisor**로서 초기 `TaskCreate` 배치를 만들고 팀원이 self-claim한다. 각 "
+                "`TaskUpdate(status=completed)` 시 Lead가 결과를 보고 **런타임에 다음 배치 `TaskCreate`를 동적 "
+                "발행**한다(정적 fan-out과 달리 작업이 동적으로 추가됨). 모든 작업 소진 시 종합 + `TeamDelete`.\n")
+    if topo == "expert-pool":
+        return ("\n\n### 토폴로지: expert-pool (상황별 전문가 라우팅)\n"
+                "먼저 **라우터 노드**(`Agent`, haiku/sonnet)가 입력을 분류한다. 오케스트레이터는 분류 결과에 따라 "
+                "**매칭된 전문가만** `Agent(subagent_type=<expert>)`로 조건부 spawn한다(모든 전문가를 항상 부르지 "
+                "않음 — 비용 절감). 팀이 아니라 sub-agent 디스패치다.\n")
+    if topo == "hierarchical":
+        return ("\n\n### 토폴로지: hierarchical-delegation (2단계 위임, depth ≤ 2)\n"
+                "Level-1: sub-coordinator들의 팀(`TeamCreate`). Level-2: 각 coordinator가 자신의 sub-agent를 "
+                "`Agent()`로 spawn한다(팀원은 sub-agent를 spawn할 수 있으나 팀은 중첩 불가). **위임 깊이는 2로 "
+                "제한**한다.\n")
+    return ""
+
+
 def _orchestrator_skill(graph, order):
     by = {n["id"]: n for n in graph["nodes"]}
     name = graph["harness_name"]
@@ -189,6 +216,7 @@ def _orchestrator_skill(graph, order):
         phase2 = ("**실행 모드: %s** — toposort 순서로 노드를 spawn하고(병렬 fan-out은 `run_in_background`), "
                   "각 노드 후 품질 게이트를 통과시킨다. spawns_used를 spawn마다 +1(단일쓰기, PostToolUse "
                   "`spawn_counter`).\n\n%s" % (mode, "\n".join(spawn)))
+    phase2 = phase2 + _topology_addendum(graph)   # M2-2: topology-specific recipe (supervisor/expert-pool/hierarchical/fan-out)
     fm = ("---\n"
           "name: %s-orchestrator\n"
           "description: \"%s 하네스를 Claude Code 프리미티브(Agent/TeamCreate)로 실행하는 오케스트레이터. "

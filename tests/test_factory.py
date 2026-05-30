@@ -269,6 +269,16 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertNotIn("TeamCreate(", emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"])),
                          "agent-only must not instantiate teams — ALL_PRIMITIVES_PRESENT must catch it")
 
+    def test_topology_recipes_emit_first_class(self):
+        # M2-2: the 4 topologies beyond pipeline/dispatch/producer-reviewer each emit their recipe
+        # (TOPOLOGY_PRIMITIVE_CONSISTENCY then enforces it at validate time).
+        for topo, mode, marker in [("supervisor", "team", "동적"), ("expert-pool", "agent", "라우터"),
+                                   ("hierarchical", "team", "깊이는 2"), ("fan-out-fan-in", "team", "병렬 수집")]:
+            g = self._graph(); g["topology"] = topo; g["execution_mode"] = mode
+            s = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+            self.assertIn("### 토폴로지:", s, "%s must emit a topology recipe" % topo)
+            self.assertIn(marker, s, "%s recipe must contain its signature %r" % (topo, marker))
+
     def test_memory_operating_cycle_first_class(self):
         # M1: long-term memory must be a declared operating cycle in every orchestrator (CONTEXT_
         # PRESERVATION_FIRSTCLASS) — not the old 1-line gap.

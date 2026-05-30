@@ -364,6 +364,21 @@ def _genome_checks(harness_dir, r, graph=None):
                 r.err("TEAM_GRACEFUL_DEGRADE",
                       "harness uses Agent Teams but documents no Sub-agent fallback for when the "
                       "experimental Agent-Teams flag is absent (A2-iii)", sk)
+            # TOPOLOGY_PRIMITIVE_CONSISTENCY (M2-2): a declared topology must actually emit its recipe,
+            # and team-requiring topologies must emit a team. (pipeline/dispatch/producer-reviewer have
+            # no addendum requirement; the 4 below are first-class emit targets.)
+            topo = (graph or {}).get("topology")
+            topo_hdr = {"fan-out-fan-in": "### 토폴로지: fan-out/fan-in",
+                        "supervisor": "### 토폴로지: supervisor",
+                        "expert-pool": "### 토폴로지: expert-pool",
+                        "hierarchical": "### 토폴로지: hierarchical"}.get(topo)
+            if topo_hdr and topo_hdr not in txt:
+                r.err("TOPOLOGY_PRIMITIVE_CONSISTENCY",
+                      "topology='%s' declared but its emit recipe is absent from the orchestrator SKILL" % topo, sk)
+            if topo in ("fan-out-fan-in", "supervisor", "hierarchical") and "TeamCreate(" not in txt:
+                r.err("TOPOLOGY_PRIMITIVE_CONSISTENCY",
+                      "topology='%s' needs an Agent Team but execution_mode emits no TeamCreate( "
+                      "(set execution_mode=team/hybrid)" % topo, sk)
 
 
 def _count_phases(text):
