@@ -287,6 +287,13 @@ class TestEmitOrchestrator(unittest.TestCase):
         for marker in ("메모리 운영", "knowledge-index", "latest.md", "CONTEXT RECOVERY"):
             self.assertIn(marker, skill, "orchestrator must declare memory operating cycle: %s" % marker)
 
+    def test_evolution_loop_wired(self):
+        # M5: every orchestrator carries the Phase-7 evolution loop (EVOLUTION_WIRED).
+        g = self._graph()
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for marker in ("진화", "evolve_harness", "change-history"):
+            self.assertIn(marker, skill, "orchestrator must wire the evolution loop: %s" % marker)
+
     def test_tools_respects_node_then_role_class(self):
         g = self._graph()
         self.assertEqual(emit_orchestrator._tools_for(g["nodes"][0]), "Read, WebSearch")  # explicit
@@ -329,6 +336,30 @@ class TestDomainSkill(unittest.TestCase):
                              "node without skill_authoring (inline default) authors no skill")
         with tempfile.TemporaryDirectory() as td:
             self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
+
+
+class TestEvolve(unittest.TestCase):
+    """M5 Phase-7: evolve_harness routes feedback deterministically + proposes evolution on recurrence."""
+
+    def test_route_feedback(self):
+        import evolve_harness as ev
+        self.assertEqual(ev.route_feedback("workflow-order"), "orchestrator")
+        self.assertEqual(ev.route_feedback("trigger-miss"), "skill-description")
+        self.assertIsNone(ev.route_feedback("nonsense"))
+
+    def test_record_and_proactive(self):
+        import evolve_harness as ev
+        with tempfile.TemporaryDirectory() as td:
+            ev.record(td, "2026-05-30", "result-quality", "deepen", "shallow")
+            ev.record(td, "2026-05-30", "result-quality", "sources", "thin")
+            ev.record(td, "2026-05-30", "trigger-miss", "kw", "missed")
+            hist = ev.read_history(td)
+            self.assertEqual(len(hist), 3, "append-only log accumulates")
+            ft = {p["feedback_type"] for p in ev.proactive_proposals(hist)}
+            self.assertIn("result-quality", ft, "2x -> proposed")
+            self.assertNotIn("trigger-miss", ft, "1x -> not proposed")
+            with self.assertRaises(ValueError):
+                ev.record(td, "d", "bogus-type", "c", "r")
 
 
 class TestAudit(unittest.TestCase):

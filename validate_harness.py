@@ -237,6 +237,24 @@ def validate(harness_dir):
         except ValueError:
             r.err("AUDIT_VERDICT_PRESENT", ".harness/audit.json is not valid JSON", apath)
 
+    # EVOLUTION_LOG_PRESENT (M5): if a change-history log exists, every entry must be a well-formed
+    # routed change (feedback_type + target + change). Append-only living record.
+    cpath = os.path.join(harness_dir, ".harness", "change-history.jsonl")
+    if os.path.isfile(cpath):
+        for i, line in enumerate(open(cpath, encoding="utf-8"), 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except ValueError:
+                r.err("EVOLUTION_LOG_PRESENT", "change-history.jsonl line %d is not valid JSON" % i, cpath)
+                break
+            if not all(k in e for k in ("feedback_type", "target", "change")):
+                r.err("EVOLUTION_LOG_PRESENT",
+                      "change-history.jsonl line %d missing feedback_type/target/change" % i, cpath)
+                break
+
     return r
 
 
@@ -415,6 +433,11 @@ def _genome_checks(harness_dir, r, graph=None):
                 r.err("TOPOLOGY_PRIMITIVE_CONSISTENCY",
                       "topology='%s' needs an Agent Team but execution_mode emits no TeamCreate( "
                       "(set execution_mode=team/hybrid)" % topo, sk)
+            # EVOLUTION_WIRED (M5): the orchestrator must carry the Phase-7 evolution loop (feedback
+            # routing + change-history) so the harness is a living system, not a one-shot artifact.
+            if "진화" not in txt or "evolve_harness" not in txt:
+                r.err("EVOLUTION_WIRED",
+                      "orchestrator SKILL lacks the Phase-7 evolution section (진화 + evolve_harness)", sk)
 
 
 def _count_phases(text):
