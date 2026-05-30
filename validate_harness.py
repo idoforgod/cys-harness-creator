@@ -154,6 +154,28 @@ def validate(harness_dir):
                 r.err("REVIEW_AGENT_PRESENT",
                       "node '%s' review.agent '%s' has no .claude/agents/%s.md (L2 review can't fire)"
                       % (nid, rv["agent"], rv["agent"]), nid)
+        # SKILL_AUTHORING_CONSISTENCY (M3/locked-5): the hybrid author-or-inline decision is machine-checked.
+        sa = n.get("skill_authoring") or {}
+        if sa.get("mode") == "skill":
+            reason = sa.get("reason")
+            if reason not in ("reuse", "complex", "conditional"):
+                r.err("SKILL_AUTHORING_JUSTIFIED",
+                      "node '%s' skill_authoring.mode='skill' needs reason in {reuse,complex,conditional}" % nid, nid)
+            elif reason == "reuse" and len(sa.get("shared_by") or []) < 2:
+                r.err("SKILL_AUTHORING_JUSTIFIED",
+                      "node '%s' reason='reuse' must list shared_by with >=2 nodes that reuse the skill" % nid, nid)
+            sn = "%s-%s" % ((graph or {}).get("harness_name", ""), nid)
+            sk_md = os.path.join(harness_dir, ".claude", "skills", sn, "SKILL.md")
+            if not os.path.isfile(sk_md):
+                r.err("INLINE_NO_ORPHAN_SKILL",
+                      "node '%s' authors a domain skill but .claude/skills/%s/SKILL.md is missing "
+                      "(run emit_domain_skill.py)" % (nid, sn), nid)
+            # LIFT_UNMEASURED (M3): an authored skill should be lift-measured before it is relied on —
+            # warning until the measurement infra (M7) wires it as a hard build gate.
+            if not os.path.isfile(os.path.join(harness_dir, ".claude", "skills", sn, "lift_verdict.json")):
+                r.warn("LIFT_UNMEASURED",
+                       "node '%s' authors skill '%s' but no lift_verdict.json — measure it (lift_gate) or inline it"
+                       % (nid, sn), nid)
         # V1 model present/valid
         if not n.get("model") or n["model"] not in VALID_TIERS:
             r.err("TIER_MISSING", "node '%s'.model empty/invalid (default would be %s)"

@@ -385,6 +385,9 @@ def emit_orchestrator(graph, harness_dir):
     order = toposort(graph["nodes"], graph["edges"])
     # 1) agent files with runtime-bound frontmatter
     _write_agent_files(graph, harness_dir)
+    # 1.5) domain skills (M3 hybrid): author .claude/skills/<harness>-<id> for skill_authoring.mode='skill'
+    from emit_domain_skill import emit_domain_skills
+    emit_domain_skills(graph, harness_dir)
     # 2) orchestrator skill + README + schemas-presence check
     skill_dir = os.path.join(harness_dir, ".claude", "skills", graph["harness_name"] + "-orchestrator")
     os.makedirs(skill_dir, exist_ok=True)

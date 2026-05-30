@@ -66,7 +66,8 @@
         "expected_tokens": { "type": "integer", "exclusiveMinimum": 0 },
         "tier_override_reason": { "type": "string" },
         "tools": { "type": "array", "items": { "type": "string" }, "description": "least-privilege tool allowlist stamped into the emitted .claude/agents/<agent>.md frontmatter (primitive substrate runtime-enforces it). Omit to inherit a role-class default." },
-        "review": { "type": "object", "additionalProperties": false, "properties": { "agent": { "type": "string" } }, "description": "optional adversarial-review attribute: after this node, the orchestrator spawns this critic agent (e.g. reviewer/fact-checker) as a first-class L2 gate step." }
+        "review": { "type": "object", "additionalProperties": false, "properties": { "agent": { "type": "string" } }, "description": "optional adversarial-review attribute: after this node, the orchestrator spawns this critic agent (e.g. reviewer/fact-checker) as a first-class L2 gate step." },
+        "skill_authoring": { "type": "object", "additionalProperties": false, "required": ["mode"], "properties": { "mode": { "type": "string", "enum": ["inline", "skill"] }, "reason": { "type": "string", "enum": ["reuse", "complex", "conditional"] }, "shared_by": { "type": "array", "items": { "type": "string" } } }, "description": "M3 hybrid authoring decision (locked 5): mode='skill' authors a .claude/skills/<harness>-<id>/SKILL.md for this node's 'how' when it is reused/complex/conditional; mode='inline' (default) keeps the 'how' in the agent body. reason is machine-checked (reuse -> shared_by>=2)." }
       },
       "allOf": [
         {

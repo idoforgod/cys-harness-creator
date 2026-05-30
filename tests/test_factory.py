@@ -299,6 +299,38 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertIn("launch", rm["runtimes"][0], "must record the session-launch handoff (R4)")
 
 
+class TestDomainSkill(unittest.TestCase):
+    """M3 hybrid authoring: a skill-mode node authors a .claude/skills/<harness>-<id>/SKILL.md (the 'how');
+    inline nodes (the default) author nothing — the 'how' stays in the agent body."""
+
+    def _g(self, sa):
+        node = {"id": "synth", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json", "retries": 0,
+                "on_exhaust": "escalate", "max_rounds": 1}
+        if sa is not None:
+            node["skill_authoring"] = sa
+        return {"schema_version": "0.1", "harness_name": "dh", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True}, "nodes": [node], "edges": []}
+
+    def test_skill_mode_authors_inline_does_not(self):
+        import emit_domain_skill
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "skill", "reason": "complex"}), td),
+                             ["dh-synth"])
+            sk = os.path.join(td, ".claude", "skills", "dh-synth", "SKILL.md")
+            self.assertTrue(os.path.isfile(sk))
+            body = open(sk, encoding="utf-8").read()
+            self.assertIn("name: dh-synth", body)
+            self.assertIn("how", body.lower())
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g(None), td), [],
+                             "node without skill_authoring (inline default) authors no skill")
+        with tempfile.TemporaryDirectory() as td:
+            self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
+
+
 class TestMeasurementDrift(unittest.TestCase):
     """The +37.5pp lesson: reference docs must cite the REAL evals verdict, never a stale win."""
 
