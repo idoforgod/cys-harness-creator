@@ -338,6 +338,35 @@ class TestDomainSkill(unittest.TestCase):
             self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
 
 
+class TestMemoryStore(unittest.TestCase):
+    """M6: Tier-II cross-run domain memory store — seeded, idempotent (accretes run over run), RLM-queried."""
+
+    def test_init_seeds_and_is_idempotent(self):
+        import inherit_genome as ig
+        with tempfile.TemporaryDirectory() as td:
+            ig._init_memory_store(td)
+            mem = os.path.join(td, ".harness", "memory")
+            for rel in ("archive.manifest.json", "domain-knowledge.yaml", os.path.join("runs", "index.jsonl")):
+                self.assertTrue(os.path.isfile(os.path.join(mem, rel)), "seed missing: %s" % rel)
+            idx = os.path.join(mem, "runs", "index.jsonl")
+            with open(idx, "a") as f:
+                f.write('{"run_id":"r1"}\n')
+            ig._init_memory_store(td)  # re-run
+            self.assertIn("r1", open(idx).read(), "re-init must not clobber accumulated runs")
+
+    def test_orchestrator_declares_tier2_rlm_recipe(self):
+        g = {"schema_version": "0.1", "harness_name": "m", "harness_version": "0.1.0", "execution_mode": "team",
+             "topology": "pipeline", "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "a", "agent": "agt", "model": "haiku", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/a.json"],
+                        "write_paths": ["_workspace/a/"], "output_schema": "", "retries": 0,
+                        "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+        s = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertIn("교차-실행 도메인 메모리", s)
+        self.assertIn("runs/index.jsonl", s)
+        self.assertIn("Grep", s, "RLM: query the index programmatically, never bulk-load")
+
+
 class TestEvolve(unittest.TestCase):
     """M5 Phase-7: evolve_harness routes feedback deterministically + proposes evolution on recurrence."""
 

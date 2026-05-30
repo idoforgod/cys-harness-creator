@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1",
+  "purpose": "Tier-II cross-run domain memory (RLM external environment) — query programmatically, never bulk-load",
+  "sections": {
+    "runs/index.jsonl": "thin append-only probe; one line per run. Grep it, then Read only matched runs/<id>/.",
+    "domain-knowledge.yaml": "IMMORTAL DKS: entities/relations/constraints, reused as L1 verification criteria.",
+    "risk/decisions.jsonl": "IMMORTAL standing decisions / risks (e.g. 'never use source X')."
+  },
+  "query_recipe": "Grep '<query tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<run_id>/* on a hit only"
+}

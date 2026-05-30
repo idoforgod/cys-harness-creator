@@ -156,6 +156,34 @@ def _verify(harness_dir):
     return errors
 
 
+def _init_memory_store(harness_dir):
+    """Seed the Tier-II cross-run domain memory store (M6) — the RLM 'external environment' the harness
+    queries programmatically across repeated RUNS. IDEMPOTENT: only creates missing seed files, never
+    clobbers accumulated runs/knowledge (so memory accretes run over run)."""
+    mem = os.path.join(harness_dir, ".harness", "memory")
+    os.makedirs(os.path.join(mem, "runs"), exist_ok=True)
+    os.makedirs(os.path.join(mem, "risk"), exist_ok=True)
+    seeds = {
+        "archive.manifest.json": json.dumps({
+            "schema_version": "0.1",
+            "purpose": "Tier-II cross-run domain memory (RLM external environment) — query programmatically, never bulk-load",
+            "sections": {
+                "runs/index.jsonl": "thin append-only probe; one line per run. Grep it, then Read only matched runs/<id>/.",
+                "domain-knowledge.yaml": "IMMORTAL DKS: entities/relations/constraints, reused as L1 verification criteria.",
+                "risk/decisions.jsonl": "IMMORTAL standing decisions / risks (e.g. 'never use source X')."},
+            "query_recipe": "Grep '<query tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<run_id>/* on a hit only",
+        }, indent=2, ensure_ascii=False) + "\n",
+        "domain-knowledge.yaml": ("# IMMORTAL domain knowledge (DKS) — entities/relations/constraints,"
+                                  " accreted across runs.\nentities: {}\nrelations: []\nconstraints: []\n"),
+        os.path.join("runs", "index.jsonl"): "",
+        os.path.join("risk", "decisions.jsonl"): "",
+    }
+    for rel, content in seeds.items():
+        p = os.path.join(mem, rel)
+        if not os.path.exists(p):
+            atomic_write(p, content)
+
+
 def inherit(harness_dir, verify_only=False, runtime_manifest=None):
     """Transplant the genome. runtime_manifest overrides the default (workflow.js-canonical)
     RUNTIME.json — emit_orchestrator passes an orchestrator-skill-canonical manifest for the
@@ -187,6 +215,8 @@ def inherit(harness_dir, verify_only=False, runtime_manifest=None):
             gk = os.path.join(p, ".gitkeep")
             if not os.path.exists(gk):
                 open(gk, "w").close()
+        # 5.5 Tier-II cross-run domain memory store (M6 / RLM external environment)
+        _init_memory_store(harness_dir)
         # 6. provenance + runtime routing manifest (resolves the two-runtime ambiguity)
         atomic_write(os.path.join(harness_dir, ".harness", "GENOME.json"), json.dumps({
             "source": "AgenticWorkflow (READ-ONLY upstream)",

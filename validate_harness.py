@@ -255,6 +255,16 @@ def validate(harness_dir):
                       "change-history.jsonl line %d missing feedback_type/target/change" % i, cpath)
                 break
 
+    # MEMORY_STORE_INIT (M6): a genome-inherited harness must have the Tier-II cross-run memory store
+    # seeded (RLM external environment). Gated on settings.json (genome present) so minimal/non-inherited
+    # fixtures are exempt.
+    if os.path.isfile(os.path.join(harness_dir, ".claude", "settings.json")):
+        mem = os.path.join(harness_dir, ".harness", "memory")
+        for rel in ("archive.manifest.json", "domain-knowledge.yaml", os.path.join("runs", "index.jsonl")):
+            if not os.path.isfile(os.path.join(mem, rel)):
+                r.err("MEMORY_STORE_INIT",
+                      ".harness/memory/%s missing (run inherit_genome / _init_memory_store)" % rel, mem)
+
     return r
 
 
@@ -438,6 +448,12 @@ def _genome_checks(harness_dir, r, graph=None):
             if "진화" not in txt or "evolve_harness" not in txt:
                 r.err("EVOLUTION_WIRED",
                       "orchestrator SKILL lacks the Phase-7 evolution section (진화 + evolve_harness)", sk)
+            # MEMORY_SKILL_SECTION (M6): the orchestrator must declare the Tier-II cross-run memory
+            # recall+write recipe (RLM — Grep the index, never bulk-load).
+            if "교차-실행 도메인 메모리" not in txt or "runs/index.jsonl" not in txt:
+                r.err("MEMORY_SKILL_SECTION",
+                      "orchestrator SKILL lacks the Tier-II cross-run memory recipe "
+                      "(교차-실행 도메인 메모리 + runs/index.jsonl)", sk)
 
 
 def _count_phases(text):
