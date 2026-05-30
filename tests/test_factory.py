@@ -837,5 +837,91 @@ class TestH2HAggregate(unittest.TestCase):
                                     model_id=None, git_sha=None, harness_version=None)
 
 
+class TestEmittedHarnessDNAFires(unittest.TestCase):
+    """P2: end-to-end proof that the inherited DNA actually FIRES on an EMITTED harness — the durable,
+    CI-able equivalent of `cd <harness> && claude` (a nested interactive session can't be spawned here).
+    Each settings.json-wired hook is run as a subprocess the way Claude Code invokes it (CLAUDE_PROJECT_DIR
+    + real .harness/state.yaml), asserting the actual fire behavior: SOT seed -> spawn-count -> ceiling
+    exit-2; QA L0 exit-2 on a missing deliverable; the genome security hook blocking rm -rf."""
+
+    def _emit(self, td):
+        g = {"schema_version": "0.1", "harness_name": "dnafire", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [
+                 {"id": "collect", "agent": "dnafire-collector", "model": "haiku", "decision_mechanism": "single",
+                  "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/c.json"],
+                  "write_paths": ["_workspace/c/"], "output_schema": "schemas/c.json",
+                  "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                 {"id": "synth", "agent": "dnafire-synth", "model": "opus", "decision_mechanism": "single",
+                  "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                  "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                  "review": {"agent": "reviewer"}, "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+             "edges": [{"from": "collect", "to": "synth"}]}
+        os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        for s in ("c", "s"):
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", s + ".json"), "w"))
+        self.assertEqual(emit_orchestrator.emit_orchestrator(g, td, in_project=False), [], "emit+genome must verify")
+        return g
+
+    def _drive(self, td, script, stdin=None):
+        """Run a wired hook script as Claude Code does: CLAUDE_PROJECT_DIR=<harness> + optional event stdin."""
+        import subprocess
+        path = os.path.join(td, ".claude", "hooks", "scripts", script)
+        env = dict(os.environ, CLAUDE_PROJECT_DIR=td)
+        return subprocess.run([sys.executable, path], env=env, input=stdin, capture_output=True, text=True)
+
+    def test_dna_fires_end_to_end(self):
+        import re
+        with tempfile.TemporaryDirectory() as td:
+            self._emit(td)
+            state = os.path.join(td, ".harness", "state.yaml")
+            # the produced settings.json WIRES the DNA hooks (so a live session would invoke them)
+            sj = json.dumps(json.load(open(os.path.join(td, ".claude", "settings.json")))["hooks"])
+            for h in ("sot_init.py", "spawn_counter.py", "budget_block.py", "qa_gate_runner.py",
+                      "block_destructive_commands.py", "context_guard.py"):
+                self.assertIn(h, sj, "settings.json must wire %s" % h)
+
+            # 1) SessionStart -> sot_init SEEDS the SOT with a real ceiling derived from the graph
+            self.assertEqual(self._drive(td, "sot_init.py").returncode, 0)
+            self.assertTrue(os.path.isfile(state), "sot_init must seed .harness/state.yaml")
+            mx = int(re.search(r"max_spawns:\s*(\d+)", open(state).read()).group(1))
+            self.assertGreaterEqual(mx, 2, "graph implies a real spawn ceiling")
+
+            # 2) PreToolUse ceiling is SILENT while under budget (spawns_used=0)
+            self.assertEqual(self._drive(td, "budget_block.py").returncode, 0, "ceiling must not false-block at 0")
+
+            # 3) PostToolUse -> spawn_counter increments spawns_used BY CODE up to the ceiling
+            for _ in range(mx):
+                self.assertEqual(self._drive(td, "spawn_counter.py").returncode, 0)
+            self.assertEqual(int(re.search(r"spawns_used:\s*(\d+)", open(state).read()).group(1)), mx,
+                             "spawn_counter must increment spawns_used to the ceiling")
+
+            # 4) PreToolUse -> budget_block now FIRES (exit 2): the spawn ceiling is a real interlock
+            self.assertEqual(self._drive(td, "budget_block.py").returncode, 2, "spawn ceiling must fire exit-2")
+
+            # 5) PostToolUse -> qa_gate_runner L0 BLOCKS a recorded-but-missing deliverable, passes a present one
+            txt = open(state).read().replace("outputs: {}", "outputs:\n  step-1: _workspace/s1/out.md")
+            open(state, "w").write(txt)
+            self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 2, "QA L0 must block a missing deliverable")
+            os.makedirs(os.path.join(td, "_workspace", "s1"))
+            open(os.path.join(td, "_workspace", "s1", "out.md"), "w").write("x" * 200)
+            self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 0, "QA L0 passes a present deliverable")
+
+            # 6) the genome security hook FIRES on a destructive command, allows a benign one
+            self.assertEqual(self._drive(td, "block_destructive_commands.py",
+                                         stdin='{"tool_name":"Bash","tool_input":{"command":"rm -rf /"}}').returncode, 2)
+            self.assertEqual(self._drive(td, "block_destructive_commands.py",
+                                         stdin='{"tool_name":"Bash","tool_input":{"command":"ls -la"}}').returncode, 0)
+
+            # 7) long-term memory store (Tier II) is seeded, and the orchestrator drives real team primitives
+            for f in ("archive.manifest.json", "domain-knowledge.yaml", os.path.join("runs", "index.jsonl")):
+                self.assertTrue(os.path.isfile(os.path.join(td, ".harness", "memory", f)), "Tier-II store: %s" % f)
+            sk = open(os.path.join(td, ".claude", "skills", "dnafire-orchestrator", "SKILL.md"), encoding="utf-8").read()
+            for p in ("TeamCreate(", "TaskCreate(", "SendMessage"):
+                self.assertIn(p, sk, "orchestrator must drive the team primitive %s" % p)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

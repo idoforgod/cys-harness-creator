@@ -60,9 +60,11 @@
 ### references/ 전면 재구성 ✅ (D1 8-파일 맵)
 - 옛 `examples.md`→`architecture-patterns.md` 흡수, `skill-writing-guide.md`→`skill-and-agent-authoring.md` 개명·확장, 신설 `genome-and-runtime.md`·`evolution-and-memory.md`. 7 파일의 옛 'workflow.js=제품 런타임' 전제 서술을 프리미티브 기질로 재배선(workflow.js는 공장내부 측정 라벨만 잔존). draft→adversarial-verify(코드 대조)→fix 워크플로우로 생산; 발견된 fabrication(없는 critique.json 게이트·날조 측정 description·miscoped STALE_BENCHMARK·BLOCKER qa role-class·절대경로·edges≠depends_on 오기) 전부 코드대조 수정. SKILL.md §참고 8-파일 맵으로 갱신.
 
+### P2 — 라이브 DNA 발화 end-to-end 증명 ✅
+- 중첩 인터랙티브 `claude` 세션은 띄울 수 없으므로, **emit된 하네스의 wired hook을 Claude Code가 부르는 방식(`CLAUDE_PROJECT_DIR` + 실제 `.harness/state.yaml`)으로 subprocess 구동**해 DNA 발화를 증명(durable, CI-able). `TestEmittedHarnessDNAFires`: SessionStart `sot_init`→SOT 시드(graph에서 max_spawns) → `spawn_counter`로 spawns_used 증분 → `budget_block` 천장 **exit-2** 발화 / QA L0 누락산출물 **exit-2** / 게놈 보안 hook `rm -rf`·`git reset --hard` 차단 / Tier-II 메모리 시드 / 오케스트레이터 실제 team 프리미티브. 60 tests green.
+
 ## ⏳ 남은 일 (P2)
-- **라이브 풀세션 end-to-end 증명** — emit 후 `cd <harness> && claude` 실세션에서 전 DNA(게이트·메모리·팀) 발화 재확인.
-- **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차).
+- **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차). *주의: reframed goal은 parity이지 우월성이 아니다 — 벤치마크 게이밍 금지, 정직 보고.*
 
 ## ❌ 폐기된 규칙 — 더 이상 적용 안 함
 - **NO_COMMANDS** 폐기(게놈 commands 정상; 새 도메인 커맨드는 직접 안 만듦). **"모든 에이전트 opus"** → role-tier 정책. **"team이 기본 / Mode-A(workflow)가 기본"** → 둘 다 폐기: **workflow 은퇴**, 빌드 하네스는 **all-6(team/hybrid)**.
