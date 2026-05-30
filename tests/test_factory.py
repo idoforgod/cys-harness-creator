@@ -256,6 +256,14 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertNotEqual(team, agent_skill, "team emit must differ from agent emit (was byte-identical)")
         self.assertNotIn("TeamDelete", agent_skill, "agent mode must not emit TeamDelete")
 
+    def test_memory_operating_cycle_first_class(self):
+        # M1: long-term memory must be a declared operating cycle in every orchestrator (CONTEXT_
+        # PRESERVATION_FIRSTCLASS) — not the old 1-line gap.
+        g = self._graph()
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for marker in ("메모리 운영", "knowledge-index", "latest.md", "CONTEXT RECOVERY"):
+            self.assertIn(marker, skill, "orchestrator must declare memory operating cycle: %s" % marker)
+
     def test_tools_respects_node_then_role_class(self):
         g = self._graph()
         self.assertEqual(emit_orchestrator._tools_for(g["nodes"][0]), "Read, WebSearch")  # explicit

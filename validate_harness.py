@@ -145,6 +145,15 @@ def validate(harness_dir):
             if fm.get("model") and n.get("model") and fm["model"] != n["model"]:
                 r.err("TIER_MISMATCH", "node '%s'.model=%s != agent frontmatter model=%s"
                       % (nid, n["model"], fm["model"]), nid)
+        # REVIEW_AGENT_PRESENT (M1): a review node's adversarial agent must have a definition file so
+        # the L2 layer can actually spawn it (genome ships reviewer/fact-checker; this enforces it).
+        rv = n.get("review")
+        if rv and rv.get("agent"):
+            rap = os.path.join(harness_dir, ".claude", "agents", rv["agent"] + ".md")
+            if not os.path.isfile(rap):
+                r.err("REVIEW_AGENT_PRESENT",
+                      "node '%s' review.agent '%s' has no .claude/agents/%s.md (L2 review can't fire)"
+                      % (nid, rv["agent"], rv["agent"]), nid)
         # V1 model present/valid
         if not n.get("model") or n["model"] not in VALID_TIERS:
             r.err("TIER_MISSING", "node '%s'.model empty/invalid (default would be %s)"
@@ -292,7 +301,7 @@ def _genome_checks(harness_dir, r, graph=None):
     # HOOK_REGISTERED: AWF security/context hooks wired; primitive substrate also wires budget_block.
     sp = os.path.join(harness_dir, ".claude", "settings.json")
     needed_hooks = ["block_destructive_commands.py", "output_secret_filter.py",
-                    "security_sensitive_file_guard.py", "context_guard.py"]
+                    "security_sensitive_file_guard.py", "context_guard.py", "save_context.py"]
     if mode != "workflow":
         # M0d: the primitive substrate must wire the budget ceiling AND the halves that make it + the
         # QA gates actually fire — else DNA stays dormant (the exact gap the audit flagged).
@@ -326,6 +335,14 @@ def _genome_checks(harness_dir, r, graph=None):
                     r.err("TEAM_EMIT_PRESENT",
                           "execution_mode='team' but orchestrator SKILL never emits: %s "
                           "(team mode must drive real team primitives, not Agent() fan)" % ", ".join(need), sk)
+            # CONTEXT_PRESERVATION_FIRSTCLASS (M1): long-term memory must be a declared operating cycle,
+            # not the old 1-line gap — RLM knowledge-index recall + latest.md restore named explicitly.
+            mem_markers = ("메모리 운영", "knowledge-index", "latest.md")
+            miss = [m for m in mem_markers if m not in txt]
+            if miss:
+                r.err("CONTEXT_PRESERVATION_FIRSTCLASS",
+                      "orchestrator SKILL lacks a first-class memory operating section (missing: %s)"
+                      % ", ".join(miss), sk)
 
 
 def _count_phases(text):
