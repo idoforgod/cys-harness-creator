@@ -92,6 +92,22 @@ class TestM0Hooks(unittest.TestCase):
         self.assertEqual(val, 5); self.assertIn("spawns_used: 5", txt)
         self.assertGreaterEqual(sot.estimate_max_spawns({"nodes": [{"decision_mechanism": "single"}]}), 1)
 
+    def test_safe_hook_merge_preserves_host(self):
+        # P1/B2: in-project install must UNION genome hooks into a host project's settings, never clobber
+        # the host's existing hooks/permissions.
+        import inherit_genome as ig
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".claude"))
+            json.dump({"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "echo HOSTHOOK"}]}]},
+                       "permissions": {"allow": ["Bash(ls:*)"]}},
+                      open(os.path.join(td, ".claude", "settings.json"), "w"))
+            ig._merge_settings(td)
+            d = json.load(open(os.path.join(td, ".claude", "settings.json")))
+            h = json.dumps(d["hooks"])
+            self.assertIn("HOSTHOOK", h, "host hook must be preserved (not clobbered)")
+            self.assertEqual(d.get("permissions", {}).get("allow"), ["Bash(ls:*)"], "host permissions preserved")
+            self.assertIn("context_guard", h, "genome hooks unioned in")
+
     def test_qa_gate_runner_l0_anti_skip(self):
         qa = _load_hook("qa_gate_runner")
         with tempfile.TemporaryDirectory() as td:

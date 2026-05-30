@@ -103,8 +103,30 @@ def _hook_cmd(script):
             'python3 "$CLAUDE_PROJECT_DIR"/.claude/hooks/scripts/%s; fi' % (script, script))
 
 
+def _union_hooks(dst, src):
+    """Union source (genome) hook entries into dst (host) hooks per event, skipping any whose command-set
+    already appears — so an in-project install (P1/B2) never clobbers a host project's existing hooks."""
+    for event, entries in (src or {}).items():
+        bucket = dst.setdefault(event, [])
+        for e in entries:
+            sig = json.dumps([h.get("command", "") for h in e.get("hooks", [])], sort_keys=True)
+            if not any(json.dumps([h.get("command", "") for h in b.get("hooks", [])], sort_keys=True) == sig for b in bucket):
+                bucket.append(e)
+    return dst
+
+
 def _merge_settings(harness_dir):
-    base = json.load(open(os.path.join(_GENOME, ".claude", "settings.json"), encoding="utf-8"))
+    genome = json.load(open(os.path.join(_GENOME, ".claude", "settings.json"), encoding="utf-8"))
+    host_path = os.path.join(harness_dir, ".claude", "settings.json")
+    if os.path.isfile(host_path):
+        # in-project install (or re-emit): preserve the host's existing settings + UNION genome hooks in.
+        try:
+            base = json.load(open(host_path, encoding="utf-8"))
+        except ValueError:
+            base = dict(genome)
+        _union_hooks(base.setdefault("hooks", {}), genome.get("hooks", {}))
+    else:
+        base = genome
     hooks = base.setdefault("hooks", {})
     # CYS SubagentStop token log (coarse/advisory). timeout=5s — was 5000 (ms-vs-s bug, CD-5).
     ss = hooks.setdefault("SubagentStop", [])
