@@ -72,6 +72,36 @@ class TestEmitDeterminism(unittest.TestCase):
             self.assertNotIn("export default", js, "%s: must be top-level-statement format" % ex)
 
 
+class TestM0Hooks(unittest.TestCase):
+    """M0d: the three hooks that make the budget ceiling + 4-layer QA actually fire — selftests pass,
+    the interlock loop (sot_init seed -> spawn_counter increment -> budget_block ceiling) closes, and
+    qa_gate_runner's L0 anti-skip blocks a missing deliverable without false-blocking a present one."""
+
+    def test_hook_selftests_pass(self):
+        import subprocess
+        for h in ("spawn_counter", "sot_init", "qa_gate_runner"):
+            p = os.path.join(ROOT, "templates", "hooks", h + ".py")
+            rc = subprocess.run([sys.executable, p, "--selftest"], capture_output=True).returncode
+            self.assertEqual(rc, 0, "%s --selftest failed" % h)
+
+    def test_budget_interlock_loop_fires(self):
+        spawn = _load_hook("spawn_counter"); budget = _load_hook("budget_block"); sot = _load_hook("sot_init")
+        self.assertFalse(budget.decide(2, 8, 1)[0], "under ceiling allows")
+        self.assertTrue(budget.decide(7, 8, 1)[0], "at ceiling-margin blocks (the loop the audit said never fired)")
+        txt, val = spawn.bump("budget:\n  spawns_used: 4\n  max_spawns: 8\n")
+        self.assertEqual(val, 5); self.assertIn("spawns_used: 5", txt)
+        self.assertGreaterEqual(sot.estimate_max_spawns({"nodes": [{"decision_mechanism": "single"}]}), 1)
+
+    def test_qa_gate_runner_l0_anti_skip(self):
+        qa = _load_hook("qa_gate_runner")
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, "_workspace", "n"))
+            good = os.path.join("_workspace", "n", "ok.md")
+            open(os.path.join(td, good), "w").write("x" * 200)
+            self.assertFalse(qa.l0_block(1, {1: good}, td)[0], "present deliverable must not false-block")
+            self.assertTrue(qa.l0_block(1, {1: "_workspace/n/missing.md"}, td)[0], "missing deliverable must block")
+
+
 class TestToposort(unittest.TestCase):
     def test_linear_order(self):
         nodes = [{"id": "a"}, {"id": "b"}, {"id": "c"}]

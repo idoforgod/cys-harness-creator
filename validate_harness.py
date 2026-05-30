@@ -294,7 +294,9 @@ def _genome_checks(harness_dir, r, graph=None):
     needed_hooks = ["block_destructive_commands.py", "output_secret_filter.py",
                     "security_sensitive_file_guard.py", "context_guard.py"]
     if mode != "workflow":
-        needed_hooks.append("budget_block.py")  # BUDGET_HOOK_REGISTERED — primitive spawn ceiling
+        # M0d: the primitive substrate must wire the budget ceiling AND the halves that make it + the
+        # QA gates actually fire — else DNA stays dormant (the exact gap the audit flagged).
+        needed_hooks += ["budget_block.py", "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
     if os.path.isfile(sp):
         try:
             cmds = json.dumps(json.load(open(sp)).get("hooks", {}))

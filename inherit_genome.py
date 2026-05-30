@@ -42,7 +42,10 @@ from atomic_write import atomic_write  # noqa: E402
 _RUNTIME_DIRS = [".claude/context-snapshots", ".claude/agent-memory", "pacs-logs", "verification-logs"]
 _CYS_LOG_HOOK = "cys_log_tokens.py"
 # CYS-specific hooks installed alongside the AWF genome (templates/hooks -> child scripts dir).
-_CYS_HOOKS = ["cys_log_tokens.py", "gate_or_block.py", "budget_block.py"]
+# M0d adds the three that make DNA FIRE instead of lie dormant: spawn_counter (increments the budget
+# ceiling counter), sot_init (instantiates the SOT), qa_gate_runner (fires L0-L2 via gate_or_block).
+_CYS_HOOKS = ["cys_log_tokens.py", "gate_or_block.py", "budget_block.py",
+              "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
 _CLAUDE_PTR = """
 
 ---
@@ -114,6 +117,21 @@ def _merge_settings(harness_dir):
     if not any("budget_block.py" in json.dumps(e) for e in pre):
         pre.append({"matcher": "Agent|Task|TeamCreate",
                     "hooks": [{"type": "command", "command": _hook_cmd("budget_block.py"), "timeout": 5}]})
+    # M0d: the missing halves that make the ceiling + gates actually FIRE.
+    post = hooks.setdefault("PostToolUse", [])
+    # spawn_counter increments budget.spawns_used (the counter budget_block reads at PreToolUse).
+    if not any("spawn_counter.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Agent|Task|TeamCreate",
+                     "hooks": [{"type": "command", "command": _hook_cmd("spawn_counter.py"), "timeout": 5}]})
+    # qa_gate_runner fires L0-L2 (via gate_or_block) on a claimed step — exit 2 halts a real failure.
+    if not any("qa_gate_runner.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Agent|Task|TaskUpdate",
+                     "hooks": [{"type": "command", "command": _hook_cmd("qa_gate_runner.py"), "timeout": 15}]})
+    # sot_init instantiates .harness/state.yaml on cold start (so the SOT + ceiling exist on run 1).
+    starts = hooks.setdefault("SessionStart", [])
+    if not any("sot_init.py" in json.dumps(e) for e in starts):
+        starts.append({"matcher": "startup|clear|resume",
+                       "hooks": [{"type": "command", "command": _hook_cmd("sot_init.py"), "timeout": 5}]})
     atomic_write(os.path.join(harness_dir, ".claude", "settings.json"),
                  json.dumps(base, indent=2, ensure_ascii=False) + "\n")
 
