@@ -318,6 +318,14 @@ def _genome_checks(harness_dir, r, graph=None):
             missing = [n["id"] for n in graph.get("nodes", []) if n["id"] not in txt]
             if missing:
                 r.err("GRAPH_SKILL_CONSISTENCY", "orchestrator SKILL omits graph nodes: %s" % ", ".join(missing), sk)
+            # TEAM_EMIT_PRESENT (M0d): execution_mode='team' must emit the ACTUAL team primitives, not
+            # the Agent() fan of agent mode (the verified 'team emit byte-identical to agent' vaporware).
+            if mode == "team":
+                need = [p for p in ("TeamCreate", "TaskCreate", "TeamDelete") if p not in txt]
+                if need:
+                    r.err("TEAM_EMIT_PRESENT",
+                          "execution_mode='team' but orchestrator SKILL never emits: %s "
+                          "(team mode must drive real team primitives, not Agent() fan)" % ", ".join(need), sk)
 
 
 def _count_phases(text):

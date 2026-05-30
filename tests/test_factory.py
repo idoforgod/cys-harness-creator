@@ -244,6 +244,18 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertIn("reviewer", skill, "review node must wire the L2 adversarial reviewer")
         self.assertIn("gate_or_block.py", skill, "gates must be invoked via the blocking wrapper")
 
+    def test_team_mode_emits_real_primitives_not_vaporware(self):
+        # M0d: team mode must drive the ACTUAL team primitives, and differ from agent emit (was
+        # byte-identical — the verified vaporware gap).
+        g = self._graph(); g["execution_mode"] = "team"
+        team = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        for p in ("TeamCreate", "TaskCreate", "TeamDelete", "SendMessage", "depends_on"):
+            self.assertIn(p, team, "team mode must emit %s (TEAM_EMIT_PRESENT)" % p)
+        a = self._graph(); a["execution_mode"] = "agent"
+        agent_skill = emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"]))
+        self.assertNotEqual(team, agent_skill, "team emit must differ from agent emit (was byte-identical)")
+        self.assertNotIn("TeamDelete", agent_skill, "agent mode must not emit TeamDelete")
+
     def test_tools_respects_node_then_role_class(self):
         g = self._graph()
         self.assertEqual(emit_orchestrator._tools_for(g["nodes"][0]), "Read, WebSearch")  # explicit
