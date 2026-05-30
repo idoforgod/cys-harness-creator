@@ -338,6 +338,50 @@ class TestDomainSkill(unittest.TestCase):
             self.assertEqual(emit_domain_skill.emit_domain_skills(self._g({"mode": "inline"}), td), [])
 
 
+class TestEightUseCases(unittest.TestCase):
+    """M7 / R2 parity bar: the factory must emit a CONFORMING harness shape for all 8 idoforgod README
+    use cases — build-level (graph conforms to the contract; orchestrator has the right topology recipe,
+    the A2 all-primitive floor, and the mandatory DNA). Run-level h2h is a separate quota-gated lane."""
+
+    USE_CASES = [
+        ("Deep Research", "fan-out-fan-in", "team"),
+        ("Website Development", "pipeline", "team"),
+        ("Webtoon / Comic Production", "producer-reviewer", "team"),
+        ("YouTube Content Planning", "supervisor", "team"),
+        ("Code Review & Refactoring", "fan-out-fan-in", "team"),
+        ("Technical Documentation", "pipeline", "team"),
+        ("Data Pipeline Design", "hierarchical", "team"),
+        ("Marketing Campaign", "producer-reviewer", "team"),
+    ]
+
+    def _graph(self, topology, exec_mode):
+        return {"schema_version": "0.1", "harness_name": "use-case", "harness_version": "0.1.0",
+                "execution_mode": exec_mode, "topology": topology,
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [{"id": "work", "agent": "worker", "model": "sonnet", "decision_mechanism": "single",
+                           "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/work.json"],
+                           "write_paths": ["_workspace/work/"], "output_schema": "", "retries": 0,
+                           "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+
+    def test_all_eight_use_cases_conform(self):
+        try:
+            import jsonschema
+        except ImportError:
+            self.skipTest("jsonschema not installed")
+        import eval_topology
+        schema = json.load(open(os.path.join(ROOT, "graph.schema.json")))
+        topos = set()
+        for use_case, topology, exec_mode in self.USE_CASES:
+            g = self._graph(topology, exec_mode)
+            jsonschema.validate(g, schema)  # graph conforms to the machine contract
+            skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+            mism = eval_topology.match(g, skill, {"use_case": use_case, "topology": topology, "exec_mode": exec_mode})
+            self.assertEqual(mism, [], "%s did not conform: %s" % (use_case, mism))
+            topos.add(topology)
+        self.assertEqual(len(self.USE_CASES), 8, "all 8 idoforgod use cases covered (USECASE_COVERAGE)")
+        self.assertGreaterEqual(len(topos), 4, "the 8 use cases must exercise multiple first-class topologies")
+
+
 class TestMemoryStore(unittest.TestCase):
     """M6: Tier-II cross-run domain memory store — seeded, idempotent (accretes run over run), RLM-queried."""
 
