@@ -23,6 +23,7 @@ import emit_workflow            # noqa: E402
 import emit_orchestrator        # noqa: E402
 import warrant                  # noqa: E402
 import lift_gate                # noqa: E402
+import h2h_aggregate            # noqa: E402
 import validate_harness         # noqa: E402
 from toposort import toposort, CycleError  # noqa: E402
 import importlib.util           # noqa: E402
@@ -739,6 +740,101 @@ class TestInProjectInstall(unittest.TestCase):
                              "self-contained")
             errors = [i for i in validate_harness.validate(td).items if i["level"] == "error"]
             self.assertEqual(errors, [], "self-contained must still validate 0 errors: %s" % errors)
+
+
+class TestLiftWiring(unittest.TestCase):
+    """P1.3: the skill lift gate has teeth. `score --out` writes the verdict to the path validate reads;
+    validate then gates: unmeasured = policy (LIFT_UNMEASURED, default warn), measured-and-refused = hard
+    LIFT_REFUSED error (a skill that loses to the baseline must not ship)."""
+
+    def _skill_harness(self, td, verdict=None):
+        os.makedirs(os.path.join(td, ".harness"))
+        g = {"schema_version": "0.1", "harness_name": "lw", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "synth", "agent": "lw-synth", "model": "opus", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                        "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                        "skill_authoring": {"mode": "skill", "reason": "complex"},
+                        "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}], "edges": []}
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        skdir = os.path.join(td, ".claude", "skills", "lw-synth"); os.makedirs(skdir)
+        open(os.path.join(skdir, "SKILL.md"), "w").write("---\nname: lw-synth\ndescription: how\n---\nhow\n")
+        if verdict is not None:
+            json.dump(verdict, open(os.path.join(skdir, "lift_verdict.json"), "w"))
+
+    def _codes(self, td):
+        return {i["code"]: i["level"] for i in validate_harness.validate(td).items}
+
+    def test_score_out_writes_verdict_file(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as td:
+            res = {"assertions": [{"id": "A1", "polarity": "must"}, {"id": "A2", "polarity": "must"}],
+                   "with_results": {"checks": {"A1": True, "A2": True}},
+                   "without_results": {"checks": {"A1": False, "A2": False}}}
+            rp = os.path.join(td, "results.json"); json.dump(res, open(rp, "w"))
+            out = os.path.join(td, "skills", "lw-synth", "lift_verdict.json")
+            r = subprocess.run([sys.executable, os.path.join(ROOT, "lift_gate.py"), "score", rp, "--out", out],
+                               capture_output=True, text=True)
+            self.assertEqual(r.returncode, 0, r.stderr)          # lift 1.0 >= 0.2 -> register -> exit 0
+            self.assertEqual(json.load(open(out))["decision"], "register", "verdict written to --out path")
+
+    def test_unmeasured_is_policy_warn_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._skill_harness(td, verdict=None)
+            self.assertEqual(self._codes(td).get("LIFT_UNMEASURED"), "warn",
+                             "an authored-but-unmeasured skill defaults to a warning (policy knob)")
+
+    def test_measured_and_refused_is_hard_error(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._skill_harness(td, verdict={"decision": "refuse", "lift": 0.05, "threshold": 0.2})
+            codes = self._codes(td)
+            self.assertEqual(codes.get("LIFT_REFUSED"), "error",
+                             "a measured skill that lost to the baseline must HARD-fail the build")
+            self.assertNotIn("LIFT_UNMEASURED", codes, "a present verdict is not 'unmeasured'")
+
+    def test_measured_and_registered_passes_lift(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._skill_harness(td, verdict={"decision": "register", "lift": 0.4, "threshold": 0.2})
+            codes = self._codes(td)
+            self.assertNotIn("LIFT_REFUSED", codes, "a registered skill passes the lift gate")
+            self.assertNotIn("LIFT_UNMEASURED", codes)
+
+    def test_corrupt_or_nonobject_verdict_errors_not_crashes(self):
+        # adversarial finding: a valid-JSON-but-non-object verdict ([]/"x"/123/true/null) or truncated JSON must
+        # produce a clean LIFT_REFUSED, never crash validate on v.get()
+        for raw in ("[]", "\"register\"", "123", "true", "null", "{ truncated ]"):
+            with tempfile.TemporaryDirectory() as td:
+                self._skill_harness(td, verdict=None)
+                open(os.path.join(td, ".claude", "skills", "lw-synth", "lift_verdict.json"), "w").write(raw)
+                codes = self._codes(td)   # must not raise
+                self.assertEqual(codes.get("LIFT_REFUSED"), "error",
+                                 "corrupt/non-object verdict %r must be a clean LIFT_REFUSED" % raw)
+
+
+class TestH2HAggregate(unittest.TestCase):
+    """P1.4: the aggregator tolerates a partially-failed suite — it DROPS invalid/flaky runs (never scores
+    them 0, which would skew the median) and reports n_attempted / n_dropped honestly."""
+
+    def test_drops_invalid_runs_not_zero(self):
+        runs = [
+            {"valid": True, "c2_pass_rate": 1.0, "c3_pass_rate": 0.8},
+            {"valid": False, "reason": "missing grade after 3 attempts"},   # dropped (flake)
+            {"c2_pass_rate": 1.0, "c3_pass_rate": 0.9},                      # legacy shape (no 'valid') -> kept
+            {"c3_pass_rate": 0.5},                                           # missing c2 -> dropped
+        ]
+        out = h2h_aggregate.aggregate(runs, model_id=None, git_sha=None, harness_version=None)
+        prov = out["provenance"]
+        self.assertEqual(prov["n_attempted"], 4)
+        self.assertEqual(prov["n_runs"], 2, "only valid runs are aggregated")
+        self.assertEqual(prov["n_dropped"], 2)
+        self.assertEqual(out["conditions"]["C2"]["median"], 1.0)
+        self.assertEqual(out["conditions"]["C3"]["median"], 0.85, "median over the 2 VALID runs, not skewed by 0s")
+
+    def test_all_invalid_raises_clearly(self):
+        with self.assertRaises(ValueError):
+            h2h_aggregate.aggregate([{"valid": False}, {"c3_pass_rate": 0.5}],
+                                    model_id=None, git_sha=None, harness_version=None)
 
 
 if __name__ == "__main__":

@@ -50,6 +50,24 @@ export const meta = {
     }
   }
 
+  // ---- StructuredOutput-resilient agent call (P1.4 hardening) ----
+  // A schema'd agent() that "completed without calling StructuredOutput" returns null and, if recorded as a
+  // 0 pass_rate, silently SKEWS the median (the exact 7/12-failed flakiness seen in the n=5 suite). Here we
+  // RETRY up to ATTEMPTS (varying the label so the runner can't return a cached null), and return null only
+  // after exhausting — the caller then DROPS the run rather than scoring it 0.
+  const ATTEMPTS = (args && Number.isInteger(args.attempts) && args.attempts > 0) ? args.attempts : 3;
+  async function tryAgent(prompt, opts) {
+    for (let i = 0; i < ATTEMPTS; i++) {
+      try {
+        const r = await agent(prompt, i === 0 ? opts : Object.assign({}, opts, { label: opts.label + ".retry" + i }));
+        if (r) return r;
+      } catch (e) { log("tryAgent " + opts.label + " attempt " + i + " threw: " + (e && e.message)); continue; }
+      log("tryAgent " + opts.label + " attempt " + i + " produced no StructuredOutput; retrying");
+    }
+    log("tryAgent " + opts.label + " exhausted " + ATTEMPTS + " attempts -> null (run will be dropped)");
+    return null;
+  }
+
   const QUERY = (args && args.query) ? args.query : "(query provided in _workspace/00_input/)";
   const N = (args && Number.isInteger(args.n) && args.n > 0) ? args.n : 3;
   const ASSERTIONS = (args && Array.isArray(args.assertions)) ? args.assertions : [];
@@ -83,19 +101,21 @@ export const meta = {
     phase("c2");
     const [out] = await pipeline(
       [QUERY],
-      async (q) => { phase("c2"); ensure(8000); return await agent(P.gather(q, run), { label: "c2.gather.run" + run, phase: "c2", model: "haiku", agentType: "researcher", schema: S.findings_schema }); },
-      async (f) => { ensure(8000); return await agent(P.fetch(f), { label: "c2.fetch.run" + run, phase: "c2", model: "haiku", agentType: "fetcher", schema: S.findings_schema }); },
+      async (q) => { phase("c2"); ensure(8000); return await tryAgent(P.gather(q, run), { label: "c2.gather.run" + run, phase: "c2", model: "haiku", agentType: "researcher", schema: S.findings_schema }); },
+      async (f) => { if (!f) return null; ensure(8000); return await tryAgent(P.fetch(f), { label: "c2.fetch.run" + run, phase: "c2", model: "haiku", agentType: "fetcher", schema: S.findings_schema }); },
       async (f) => {
+        if (!f) return null;
         let draft = f;
         for (let r = 0; r < 2; r++) {            // reflect-then-revise, max_rounds=2 (constants.MAX_ROUNDS)
           ensure(20000);
-          const crit = await agent(P.verify_critic(draft, r), { label: "c2.verify.critic.r" + r + ".run" + run, phase: "c2", model: "opus", agentType: "verifier", schema: S.critique_schema });
+          const crit = await tryAgent(P.verify_critic(draft, r), { label: "c2.verify.critic.r" + r + ".run" + run, phase: "c2", model: "opus", agentType: "verifier", schema: S.critique_schema });
           if (!crit || crit.approved) { log("c2.verify approved at round " + r + " (run " + run + ")"); break; }
-          draft = await agent(P.verify_reviser(draft, crit, r), { label: "c2.verify.reviser.r" + r + ".run" + run, phase: "c2", model: "sonnet", agentType: "verifier", schema: S.findings_schema });
+          const revised = await tryAgent(P.verify_reviser(draft, crit, r), { label: "c2.verify.reviser.r" + r + ".run" + run, phase: "c2", model: "sonnet", agentType: "verifier", schema: S.findings_schema });
+          if (revised) draft = revised;          // a flaky revise keeps the prior draft rather than nulling the run
         }
         return draft;
       },
-      async (f) => { ensure(30000); return await agent(P.synthesize(f), { label: "c2.synthesize.run" + run, phase: "c2", model: "opus", agentType: "synthesizer", schema: S.report_schema }); }
+      async (f) => { if (!f) return null; ensure(30000); return await tryAgent(P.synthesize(f), { label: "c2.synthesize.run" + run, phase: "c2", model: "opus", agentType: "synthesizer", schema: S.report_schema }); }
     );
     return out;
   }
@@ -103,7 +123,7 @@ export const meta = {
   // ---- C3: no-harness baseline (single opus pass) ----
   async function run_c3(run) {
     phase("c3"); ensure(8000);
-    return await agent(P.baseline(QUERY, run), { label: "c3.baseline.run" + run, phase: "c3", model: "opus", agentType: "baseline", schema: S.report_schema });
+    return await tryAgent(P.baseline(QUERY, run), { label: "c3.baseline.run" + run, phase: "c3", model: "opus", agentType: "baseline", schema: S.report_schema });
   }
 
   // ---- blind grade ONE run: A=C2, B=C3 (DETERMINISTIC mapping, RECORDED) ----
@@ -115,44 +135,60 @@ export const meta = {
     const a_is = "C2", b_is = "C3";
     ensure(16000);
     const [gradeA, gradeB] = await parallel([
-      () => agent(P.grade("A", c2_report), { label: "grade.A.run" + run, phase: "grade", model: "opus", agentType: "grader", schema: S.grade_schema }),
-      () => agent(P.grade("B", c3_report), { label: "grade.B.run" + run, phase: "grade", model: "opus", agentType: "grader", schema: S.grade_schema })
+      () => tryAgent(P.grade("A", c2_report), { label: "grade.A.run" + run, phase: "grade", model: "opus", agentType: "grader", schema: S.grade_schema }),
+      () => tryAgent(P.grade("B", c3_report), { label: "grade.B.run" + run, phase: "grade", model: "opus", agentType: "grader", schema: S.grade_schema })
     ]);
-    const aRate = (gradeA && typeof gradeA.pass_rate === "number") ? gradeA.pass_rate : 0;
-    const bRate = (gradeB && typeof gradeB.pass_rate === "number") ? gradeB.pass_rate : 0;
+    // DROP, don't false-zero: a run missing a report or a grade after retries is INVALID and is EXCLUDED from
+    // the aggregate, so a StructuredOutput flake can never masquerade as a real 0 and skew the median.
+    const valid = !!(c2_report && c3_report
+                     && gradeA && typeof gradeA.pass_rate === "number"
+                     && gradeB && typeof gradeB.pass_rate === "number");
+    if (!valid) {
+      log("h2h run " + run + " DROPPED (invalid: missing report/grade after " + ATTEMPTS + " attempts)");
+      return { run, valid: false, reason: "missing report or grade after " + ATTEMPTS + " attempts" };
+    }
     return {
-      run,
+      run, valid: true,
       a_is, b_is,                                // recorded blind mapping (audit)
-      c2_pass_rate: aRate,                       // A=C2
-      c3_pass_rate: bRate,                       // B=C3
-      c2_passed: (gradeA && gradeA.passed) || [],
-      c2_failed: (gradeA && gradeA.failed) || [],
-      c3_passed: (gradeB && gradeB.passed) || [],
-      c3_failed: (gradeB && gradeB.failed) || []
+      c2_pass_rate: gradeA.pass_rate,            // A=C2
+      c3_pass_rate: gradeB.pass_rate,            // B=C3
+      c2_passed: gradeA.passed || [],
+      c2_failed: gradeA.failed || [],
+      c3_passed: gradeB.passed || [],
+      c3_failed: gradeB.failed || []
     };
   }
 
-  // ---- main: n runs, collect per-run scorecards ----
+  // ---- main: n runs, collect per-run scorecards (drop invalid runs honestly) ----
   const runs = [];
+  let attempted = 0, dropped = 0;
   for (let run = 0; run < N; run++) {
     phase("run"); log("h2h run " + run + " of " + N);
+    attempted++;
     const [c2_report, c3_report] = await parallel([
       () => run_c2(run),
       () => run_c3(run)
     ]);
-    runs.push(await grade_run(run, c2_report, c3_report));
+    const scored = await grade_run(run, c2_report, c3_report);
+    if (scored.valid) runs.push(scored); else dropped++;
   }
+  if (runs.length === 0) log("WARNING: 0 valid runs of " + attempted + " — all dropped (StructuredOutput flakes); raise --attempts or re-run");
 
   phase("aggregate");
   const result = {
-    runs,                                        // -> feed runs[] to h2h_aggregate.py
+    runs,                                        // -> feed runs[] to h2h_aggregate.py (valid runs only)
     provenance: {
       schema_version: "0.1",
       harness_ref: HARNESS_REF,
       n_runs: N,
+      n_attempted: attempted,
+      n_valid: runs.length,
+      n_dropped: dropped,
       blind_mapping: "A=C2, B=C3 (deterministic, recorded per run)",
+      hardening: "StructuredOutput-resilient: each agent retried up to " + ATTEMPTS + "x; a run missing a report/"
+        + "grade after retries is DROPPED (not scored 0) so flakes never skew the median",
       note: "model_id + git_sha are stamped by h2h_aggregate.py from CLI/file (not knowable inside Mode A scripts)."
     }
   };
-  log("h2h-suite done: " + N + " runs graded");
+  log("h2h-suite done: " + runs.length + " valid / " + attempted + " attempted (" + dropped + " dropped)");
   return result;

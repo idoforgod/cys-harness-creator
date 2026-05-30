@@ -89,10 +89,16 @@ def aggregate(runs, *, model_id, git_sha, harness_version,
     """
     if not runs:
         raise ValueError("runs is empty: need >=1 per-run scorecard to aggregate.")
-    for k in ("c2_pass_rate", "c3_pass_rate"):
-        for i, r in enumerate(runs):
-            if k not in r:
-                raise ValueError(f"run[{i}] missing required key {k!r}")
+    # P1.4 hardening: the producing suite DROPS flaky runs (StructuredOutput misses) rather than scoring them 0,
+    # marking them valid:false. Tolerate a partially-failed suite honestly — aggregate only runs that carry both
+    # head-to-head rates and are not explicitly invalid, and report how many were dropped (never silently zero).
+    n_attempted = len(runs)
+    valid = [r for r in runs if r.get("valid", True) and "c2_pass_rate" in r and "c3_pass_rate" in r]
+    n_dropped = n_attempted - len(valid)
+    if not valid:
+        raise ValueError("no valid runs to aggregate: all %d attempted run(s) were dropped/invalid "
+                         "(valid:false or missing c2/c3_pass_rate)" % n_attempted)
+    runs = valid
 
     conditions = {}
     for key in _condition_keys(runs):
@@ -126,10 +132,13 @@ def aggregate(runs, *, model_id, git_sha, harness_version,
             "model_id": model_id,
             "harness_version": harness_version,
             "git_sha": git_sha,
-            "n_runs": len(runs),
+            "n_runs": len(runs),          # valid runs actually aggregated
+            "n_attempted": n_attempted,
+            "n_dropped": n_dropped,
         },
-        "note": "INCONCLUSIVE => margin not cleared either way; high variance => "
-                "increase n. Report domains where CYS does NOT win honestly.",
+        "note": "INCONCLUSIVE => margin not cleared either way; high variance => increase n. "
+                "n_dropped>0 => StructuredOutput flakes were dropped (not scored 0); if n_dropped is large "
+                "the valid-n is thin — re-run. Report domains where CYS does NOT win honestly.",
     }
 
 

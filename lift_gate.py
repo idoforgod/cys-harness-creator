@@ -167,6 +167,8 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     sp = sub.add_parser("score", help="score a runtime results.json -> register/refuse")
     sp.add_argument("results", help="JSON: {assertions, with_results, without_results}")
+    sp.add_argument("--out", help="also WRITE the verdict here (e.g. <harness>/.claude/skills/<harness>-<node>/"
+                                  "lift_verdict.json) so validate_harness.py can gate on it (LIFT_REFUSED)")
     ep = sub.add_parser("emit-probe", help="emit lift_probe.workflow.js for a skill.json")
     ep.add_argument("skill", help="JSON: {name, prompt, assertions}")
     args = ap.parse_args()
@@ -175,6 +177,13 @@ def main():
         with open(args.results) as f:
             r = json.load(f)
         out = score(r["with_results"], r["without_results"], r["assertions"])
+        if args.out:
+            d = os.path.dirname(os.path.abspath(args.out))
+            if d:
+                os.makedirs(d, exist_ok=True)
+            with open(args.out, "w") as f:
+                json.dump(out, f, indent=2)
+                f.write("\n")
         json.dump(out, sys.stdout, indent=2)
         sys.stdout.write("\n")
         sys.exit(0 if out["decision"] == "register" else 3)

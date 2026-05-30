@@ -63,7 +63,7 @@ python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL
 - **I3 오케스트레이터 + emit** — `emit_orchestrator.py <TARGET>`: `<domain>-orchestrator/SKILL.md`(execution_mode로 분기 — **team이면 실제 TeamCreate/TaskCreate(deps)/SendMessage/TeamDelete emit**, 메모리 운영·진화 섹션 포함) + agent stamps + **게놈전수 + 메모리 store init** + `RUNTIME.json`(orchestrator-canonical) + `CLAUDE.md` 포인터. **`workflow.js` 미emit.**
 - **I4 게놈 발화** — `inherit_genome.py`(자동): hooks를 자식 `settings.json`에 배선 → Context Preservation(스냅샷/복원)·**L0-L2(`qa_gate_runner`)·budget(`budget_block`+`spawn_counter`)·SOT(`sot_init`)·적대적 reviewer/fact-checker**가 실세션에서 *발화*. prompt-runner는 보관-but-비활성.
 - **I5 검증 게이트** — `validate_harness.py <TARGET>` → **error 시 생성 중단·보고**(고치고 재실행).
-- **I6 측정·테스트** — with/without **lift**(`lift_gate.py`, skill 노드는 측정 필요 — `LIFT_UNMEASURED`), 트리거 near-miss(should/should-NOT), dry-run(dead-link).
+- **I6 측정·테스트** — **lift 게이트**(skill 노드): `lift_gate.py emit-probe`로 probe 생성 → 런타임 실행(with-skill sonnet vs baseline haiku, blind opus grader) → `lift_gate.py score <results> --out <skill>/lift_verdict.json`. validate가 **측정 미실시=`LIFT_UNMEASURED`**(constants 정책, 기본 warn→error 전환가능)·**측정했으나 baseline 미달=`LIFT_REFUSED`(hard error)**로 게이트. + 트리거 near-miss(should/should-NOT), dry-run(dead-link).
 
 ### STAGE 4 — EVOLUTION (실행 + 학습; idoforgod Phase 7 + CYS 측정)
 - **E1 git** — `git init && git add -A && git commit`.

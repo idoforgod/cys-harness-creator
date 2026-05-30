@@ -185,12 +185,33 @@ def validate(harness_dir):
                 r.err("INLINE_NO_ORPHAN_SKILL",
                       "node '%s' authors a domain skill but .claude/skills/%s/SKILL.md is missing "
                       "(run emit_domain_skill.py)" % (nid, sn), nid)
-            # LIFT_UNMEASURED (M3): an authored skill should be lift-measured before it is relied on —
-            # warning until the measurement infra (M7) wires it as a hard build gate.
-            if not os.path.isfile(os.path.join(harness_dir, ".claude", "skills", sn, "lift_verdict.json")):
-                r.warn("LIFT_UNMEASURED",
-                       "node '%s' authors skill '%s' but no lift_verdict.json — measure it (lift_gate) or inline it"
-                       % (nid, sn), nid)
+            # LIFT gate (M3 + P1.3 wiring): an authored skill must earn its keep against the no-skill baseline.
+            #   - UNMEASURED (no lift_verdict.json): policy-controlled (constants.LIFT_UNMEASURED, default 'warn';
+            #     flip to 'error' to forbid shipping unmeasured skills).
+            #   - MEASURED-AND-REFUSED (verdict present, decision!=register): HARD ERROR — the skill lost to the
+            #     baseline, so relying on it is unjustified. Inline it or improve it. (lift_gate score --out writes
+            #     the verdict to this exact path.) This is what gives the gate teeth.
+            lv = os.path.join(harness_dir, ".claude", "skills", sn, "lift_verdict.json")
+            if not os.path.isfile(lv):
+                r.add("LIFT_UNMEASURED", _load_const("LIFT_UNMEASURED", "warn"),
+                      "node '%s' authors skill '%s' but no lift_verdict.json — measure it (lift_gate.py score "
+                      "--out <skill>/lift_verdict.json) or inline it" % (nid, sn), nid)
+            else:
+                try:
+                    v = json.load(open(lv, encoding="utf-8"))
+                except ValueError:
+                    v = None
+                if not isinstance(v, dict):
+                    # corrupt / non-object verdict (truncated write, bad merge, hand-edit) — never crash on it;
+                    # an unreadable verdict is not a valid registration, so the skill must not ship.
+                    r.err("LIFT_REFUSED",
+                          "node '%s' skill '%s' lift_verdict.json is missing a decision / not a JSON object — "
+                          "re-run lift_gate.py score --out" % (nid, sn), nid)
+                elif v.get("decision") != "register":
+                    r.err("LIFT_REFUSED",
+                          "node '%s' skill '%s' was lift-measured but REFUSED (decision=%r, lift=%s) — inline it or "
+                          "improve it; do not ship a skill that does not beat the baseline"
+                          % (nid, sn, v.get("decision"), v.get("lift")), nid)
         # V1 model present/valid
         if not n.get("model") or n["model"] not in VALID_TIERS:
             r.err("TIER_MISSING", "node '%s'.model empty/invalid (default would be %s)"

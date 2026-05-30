@@ -2,7 +2,7 @@
 
 > **이 문서가 다른 모든 reference의 aspirational 서술에 우선한다.** reference가 무엇을 설명하든, 실제로 emit/validate에 구현됐는지는 여기로 확정한다. (출처: `emit_orchestrator.py`·`emit_domain_skill.py`·`audit_harness.py`·`evolve_harness.py`·`eval_topology.py`·`inherit_genome.py`·`validate_harness.py`·`templates/hooks/`·`tests/test_factory.py` 실측. 설계 전모: `design/STRATEGY-AND-DESIGN.md`.)
 >
-> **현 상태: 52 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치(B2) 완료(3-lens 적대적 리뷰 통과).**
+> **현 상태: 58 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치(B2)·lift 빌드배선(P1.3)·h2h 측정보강(P1.4) 완료.**
 
 ## ✅ 구현·검증 완료 (M0–M8)
 
@@ -49,9 +49,16 @@
 - **모드 전환 가드**: `install_mode` 마커(`.harness/GENOME.json`)로 `validate`가 `GENOME_PRESENT`(루트 vs `.harness/genome/`)·`W1_GENOME`·doc/measurement-drift 경로 자동 분기(마커 손상 시 `.harness/genome/CLAUDE.md` 존재로 구조적 감지). **다른 모드로 재emit은 거부**(in-project↔self-contained 전환 시 호스트 클로버 방지). 재emit idempotent(포인터 1회).
 - **검증**: CLI emit+validate 0/0, **52 factory tests**(+6 in-project), **3-lens 적대적 리뷰**(correctness·host-safety·parity)에서 발견된 4 MAJOR(비객체 settings 크래시·파싱불가 호스트손실·hook 클로버·reviewer 누락) 전부 수정·재현테스트 추가.
 
+### P1.3 — lift 빌드 배선 ✅ (게이트에 이빨)
+- `lift_gate.py score <results> --out <skill>/lift_verdict.json`: 측정 결과(verdict)를 validate가 읽는 정확한 경로에 기록.
+- validate: 미측정=`LIFT_UNMEASURED`(constants.json `LIFT_UNMEASURED` 정책, 기본 `warn`→`error` 전환가능); **측정했으나 baseline 미달(`decision≠register`)=`LIFT_REFUSED`(hard error)** — baseline에 진 스킬은 출하 불가(inline하거나 개선). 측정-실패가 빌드를 실제로 막는다(이전엔 presence-warn만).
+
+### P1.4 — h2h 측정 보강 ✅ (StructuredOutput flakiness)
+- `h2h_suite.workflow.js`: `tryAgent` 재시도 래퍼(null/throw 시 ATTEMPTS회, 라벨 변주로 캐시회피) + **flake run은 0점이 아니라 DROP**(보고서/채점 누락 run을 median에서 제외 → 가짜 0이 중앙값 왜곡 불가) + provenance `n_attempted/n_valid/n_dropped`.
+- `h2h_aggregate.py`: 무효 run(`valid:false`/키누락) 첫 발견에 raise하던 것을 **필터링**으로 변경(부분실패 suite를 정직하게 집계) + `n_dropped` 보고. 이전 n=5 측정의 7/12 실패 패턴을 구조적으로 흡수.
+
 ## ⏳ 남은 일 (P1/P2)
 - **references/ 전면 재구성** — `architecture-patterns.md`·`graph-and-orchestration.md` 등에 일부 옛 'workflow.js' 전제 서술 잔존. **본 문서가 우선.** D1의 8-파일 맵(`genome-and-runtime.md`·`evolution-and-memory.md`·`skill-and-agent-authoring.md` 신설)은 후속.
-- **lift 빌드 배선** — `LIFT_UNMEASURED`는 현재 warn(측정 인프라 결합). 측정 자동화 후 error 승격.
 - **라이브 풀세션 end-to-end 증명** — emit 후 `cd <harness> && claude` 실세션에서 전 DNA(게이트·메모리·팀) 발화 재확인.
 - **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차).
 
