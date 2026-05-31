@@ -286,6 +286,15 @@ class TestEmitOrchestrator(unittest.TestCase):
         self.assertNotIn("TeamCreate(", emit_orchestrator._orchestrator_skill(a, toposort(a["nodes"], a["edges"])),
                          "agent-only must not instantiate teams — ALL_PRIMITIVES_PRESENT must catch it")
 
+    def test_hybrid_emits_team_recipe_and_passes_a2(self):
+        # P0-2 (audit): hybrid used to fall into the agent branch, emit 0 TeamCreate, and STRUCTURALLY fail the
+        # A2 floor the validator recommends. It must now emit the real team recipe (TeamCreate/TaskCreate/degrade).
+        h = self._graph(); h["execution_mode"] = "hybrid"
+        sk = emit_orchestrator._orchestrator_skill(h, toposort(h["nodes"], h["edges"]))
+        for p in ("TeamCreate(", "Agent(", "TaskCreate("):
+            self.assertIn(p, sk, "hybrid must emit the team primitive %s (A2 ALL_PRIMITIVES_PRESENT)" % p)
+        self.assertTrue("강등" in sk or "degrade" in sk.lower(), "hybrid must carry the graceful-degrade note")
+
     def test_topology_recipes_emit_first_class(self):
         # M2-2: the 4 topologies beyond pipeline/dispatch/producer-reviewer each emit their recipe
         # (TOPOLOGY_PRIMITIVE_CONSISTENCY then enforces it at validate time).
@@ -921,6 +930,83 @@ class TestEmittedHarnessDNAFires(unittest.TestCase):
             sk = open(os.path.join(td, ".claude", "skills", "dnafire-orchestrator", "SKILL.md"), encoding="utf-8").read()
             for p in ("TeamCreate(", "TaskCreate(", "SendMessage"):
                 self.assertIn(p, sk, "orchestrator must drive the team primitive %s" % p)
+
+
+class TestPromptRunnerAbsent(unittest.TestCase):
+    """P0-3 (audit): a produced harness must NOT physically ship the prompt-runner `claude -p` subprocess
+    executor or its slash commands (a latent non-primitive execution path) — A1. The self-contained pour now
+    excludes them (mirroring in-project), and validate has a FILESYSTEM check symmetric to the workflow.js one."""
+
+    def _emit(self, td):
+        g = {"schema_version": "0.1", "harness_name": "prx", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "collect", "agent": "prx-c", "model": "haiku", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/c.json"],
+                        "write_paths": ["_workspace/c/"], "output_schema": "schemas/c.json",
+                        "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1}],
+             "edges": []}
+        os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        json.dump({"type": "object"}, open(os.path.join(td, "schemas", "c.json"), "w"))
+        self.assertEqual(emit_orchestrator.emit_orchestrator(g, td, in_project=False), [])
+
+    def test_self_contained_does_not_ship_prompt_runner(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._emit(td)
+            self.assertFalse(os.path.exists(os.path.join(td, "prompt-runner")), "no prompt-runner/ in a produced harness")
+            self.assertFalse(os.path.exists(os.path.join(td, "prompt")), "no prompt/ samples")
+            cmds = os.path.join(td, ".claude", "commands")
+            if os.path.isdir(cmds):
+                self.assertEqual([f for f in os.listdir(cmds) if "prompt" in f.lower()], [],
+                                 "no prompt-runner-coupled slash commands")
+            self.assertEqual([i for i in validate_harness.validate(td).items if i["level"] == "error"], [],
+                             "clean self-contained harness validates 0 errors")
+
+    def test_planted_prompt_runner_fails_validate(self):
+        with tempfile.TemporaryDirectory() as td:
+            self._emit(td)
+            os.makedirs(os.path.join(td, "prompt-runner"))
+            open(os.path.join(td, "prompt-runner", "run.py"), "w").write("# claude -p executor\n")
+            codes = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("PROMPT_RUNNER_ABSENT", codes, "a physically-shipped prompt-runner must fail validate")
+
+
+class TestSotPathReconciled(unittest.TestCase):
+    """P0-1 (audit BLOCKER): the genome's Context-Preservation SOT reader must resolve CYS's
+    .harness/state.yaml — sot_init/budget_block/spawn_counter/emit all write there, but the genome
+    sot_paths() historically resolved only .claude/, so every Tier-I snapshot silently dropped the SOT
+    (current_step/budget/outputs). Lock the .harness-first resolution + the .claude fallback."""
+
+    def _lib(self):
+        import importlib.util
+        p = os.path.join(ROOT, "genome", ".claude", "hooks", "scripts", "_context_lib.py")
+        sys.path.insert(0, os.path.dirname(p))
+        spec = importlib.util.spec_from_file_location("_context_lib_p0", p)
+        m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+        return m
+
+    def _content(self, sot):
+        return sot.get("content", "") if isinstance(sot, dict) else str(sot)
+
+    def test_harness_sot_is_seen_by_context_preservation(self):
+        cl = self._lib()
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".harness"))
+            open(os.path.join(td, ".harness", "state.yaml"), "w").write(
+                "workflow:\n  current_step: 3\noutputs:\n  step-1: x.md\nbudget:\n  spawns_used: 2\n  max_spawns: 8\n")
+            self.assertEqual(cl.sot_paths(td)[0], os.path.join(td, ".harness", "state.yaml"),
+                             ".harness/ SOT must resolve FIRST (CYS convention)")
+            c = self._content(cl.capture_sot(td))
+            self.assertIn("current_step: 3", c, "Tier-I snapshot must capture the .harness SOT payload")
+            self.assertIn("max_spawns: 8", c)
+
+    def test_claude_sot_still_resolves_as_fallback(self):
+        cl = self._lib()
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".claude"))
+            open(os.path.join(td, ".claude", "state.yaml"), "w").write("workflow:\n  current_step: 9\n")
+            self.assertIn("current_step: 9", self._content(cl.capture_sot(td)), "plain-AWF .claude SOT must still resolve")
 
 
 if __name__ == "__main__":

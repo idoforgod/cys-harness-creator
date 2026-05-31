@@ -215,7 +215,11 @@ def _orchestrator_skill(graph, order):
         out = (n.get("outputs") or ["(return)"])[0]
         rows.append("| %s | %s | %s | %s | %s | %s |" % (nid, n["agent"], n["model"],
                     n["decision_mechanism"], _tools_for(n), out))
-    if mode == "team":
+    if mode in ("team", "hybrid"):
+        # P0-2 (audit): hybrid emits the REAL team recipe so it actually instantiates TeamCreate and passes the
+        # A2 ALL_PRIMITIVES_PRESENT floor the validator tells builders to use (it previously fell into the agent
+        # branch, emitted 0 TeamCreate, and structurally FAILED A2 — a documented mode that could never pass).
+        # True per-stage agent/team mixing remains future work; today hybrid == the team recipe.
         phase2 = _team_recipe(graph, order)
     else:
         spawn = []
@@ -239,7 +243,7 @@ graph.json(불변 계약)에서 emit된 오케스트레이터. 산출 하네스�
 실행하며, 이 세션에 상속된 AWF 게놈 hook(컨텍스트 보존·보안·SubagentStop)이 발화하고, 각 노드의
 `.claude/agents/<agent>.md` frontmatter(model·tools·maxTurns)가 Agent 도구에 의해 런타임 강제된다.
 
-## 실행 모드: {mode} (기본=agent 순차 sub-spawn; team=TeamCreate/SendMessage 실제 emit; hybrid=단계별 혼합)
+## 실행 모드: {mode} (agent=순차 sub-spawn; team/hybrid=TeamCreate/SendMessage 실제 emit; hybrid 단계별 혼합은 future work=현재 team 레시피)
 
 ## 에이전트 구성
 

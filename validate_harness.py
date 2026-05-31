@@ -385,6 +385,23 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
         r.err("WORKFLOW_RETIRED",
               "produced harness ships .harness/workflow.js (retired non-primitive runtime) — remove it; "
               "the orchestrator skill is the only execution runtime", _wjs)
+    # PROMPT_RUNNER_ABSENT (P0-3/audit): a produced harness must not PHYSICALLY ship the prompt-runner
+    # `claude -p` subprocess executor or its slash commands — a latent non-primitive execution path. This is
+    # a FILESYSTEM check (symmetric to the workflow.js isfile check above); RUNTIME_MANIFEST_CLEAN below only
+    # checks what RUNTIME.json *advertises*, so the binary could sit on disk while the manifest stayed 'clean'.
+    if mode != "workflow":
+        _pr = os.path.join(harness_dir, "prompt-runner", "run.py")
+        if os.path.isfile(_pr):
+            r.err("PROMPT_RUNNER_ABSENT",
+                  "produced harness ships prompt-runner/run.py (a `claude -p` subprocess batch executor — a "
+                  "non-primitive execution path); exclude it from the transplant (inherit_genome _NONPRIMITIVE_EXCLUDES)", _pr)
+        _cmd = os.path.join(harness_dir, ".claude", "commands")
+        if os.path.isdir(_cmd):
+            _bad = sorted(f for f in os.listdir(_cmd) if "prompt" in f.lower() and f.endswith(".md"))
+            if _bad:
+                r.err("PROMPT_RUNNER_ABSENT",
+                      "produced harness ships prompt-runner slash command(s): %s (non-primitive execution path)"
+                      % ", ".join(_bad), _cmd)
     hname = (graph or {}).get("harness_name", "")
     expected_canonical = "cys-mode-a" if mode == "workflow" else ("%s-orchestrator" % hname)
     rp = os.path.join(harness_dir, ".harness", "RUNTIME.json")

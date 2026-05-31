@@ -465,8 +465,14 @@ def _extract_tool_result_summary(content):
 # =============================================================================
 
 def sot_paths(project_dir):
-    """Build SOT file path list from SOT_FILENAMES constant (A-3: single definition)."""
-    return [os.path.join(project_dir, ".claude", fn) for fn in SOT_FILENAMES]
+    """Build SOT file path list from SOT_FILENAMES constant (A-3: single definition).
+
+    CYS Harness Creator standardizes the SOT at .harness/state.yaml (constants.json SOT_PATH); AWF's
+    historical default is .claude/. Resolve .harness/ FIRST, then fall back to .claude/, so a CYS-produced
+    harness's SOT is actually seen by capture_sot()/read_autopilot_state() (else every Tier-I snapshot
+    silently drops current_step/budget/outputs) while a plain AWF project still resolves at .claude/."""
+    return ([os.path.join(project_dir, ".harness", fn) for fn in SOT_FILENAMES]
+            + [os.path.join(project_dir, ".claude", fn) for fn in SOT_FILENAMES])
 
 
 def capture_sot(project_dir):

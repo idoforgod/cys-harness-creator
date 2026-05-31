@@ -47,6 +47,10 @@ _RUNTIME_DIRS_INPROJECT = [".claude/context-snapshots", ".claude/agent-memory",
 # is overlaid into the host; the ~440KB root constitution + docs are RELOCATED under .harness/genome/
 # (no core hook READS them — only os.path.isfile-guarded doc-sync lints — so relocation is behavior-safe
 # and never clobbers the host's own root CLAUDE.md/AGENTS.md/README).
+# P0-3 (audit): the prompt-runner subprocess executor (`claude -p` batch runner) + its slash commands are a
+# NON-PRIMITIVE execution path — never part of a produced harness's A1 runtime. Exclude from BOTH install modes
+# (in-project already skips them via _RELOCATE_EXCLUDES + commands-skip; this covers the self-contained pour).
+_NONPRIMITIVE_EXCLUDES = ["/prompt-runner", "/prompt", "*-prompts.md"]
 _INPROJECT_NONCLOBBER_SUBS = ["agents", "skills", "config"]   # capability+config: host file always wins
 # adversarial-review agents are L2 DNA — force-installed from genome even in-project (host copy backed up)
 _MANDATORY_GENOME_AGENTS = ["reviewer.md", "fact-checker.md"]
@@ -186,6 +190,24 @@ def _transplant_overlay(harness_dir):
     _force_install_mandatory_agents(harness_dir)
     # constitution + protocol docs: relocate under the CYS-owned .harness/genome/ (citable, provenance-bearing)
     _rsync(_GENOME, os.path.join(harness_dir, ".harness", "genome"), excludes=_RELOCATE_EXCLUDES)
+
+
+def _purge_nonprimitive(harness_dir):
+    """Self-heal: remove a prompt-runner executor + prompt samples + prompt-coupled slash commands left by a
+    PRIOR (pre-fix) self-contained emit, so a re-emit converges to the A1 primitive-only runtime. SELF-CONTAINED
+    ONLY (callers gate on `not in_project`) — never deletes an in-project HOST's own files. Idempotent."""
+    for d in ("prompt-runner", "prompt"):
+        p = os.path.join(harness_dir, d)
+        if os.path.isdir(p):
+            shutil.rmtree(p, ignore_errors=True)
+    cmds = os.path.join(harness_dir, ".claude", "commands")
+    if os.path.isdir(cmds):
+        for f in os.listdir(cmds):
+            if f.endswith("-prompts.md"):
+                try:
+                    os.remove(os.path.join(cmds, f))
+                except OSError:
+                    pass
 
 
 def _union_perms(base, genome):
@@ -331,7 +353,9 @@ def inherit(harness_dir, verify_only=False, runtime_manifest=None, in_project=Fa
         if in_project:
             _transplant_overlay(harness_dir)
         else:
-            _rsync(_GENOME, harness_dir, excludes=["README.md", ".claude/settings.json"])
+            _rsync(_GENOME, harness_dir,
+                   excludes=["README.md", ".claude/settings.json"] + _NONPRIMITIVE_EXCLUDES)
+            _purge_nonprimitive(harness_dir)   # self-heal a pre-fix emit that already shipped prompt-runner
         # 2. merge settings.json (host-preserving union — same path both modes)
         _merge_settings(harness_dir)
         # 3. install CYS-specific hooks into the AWF scripts dir (token log + gate/budget interlocks)
