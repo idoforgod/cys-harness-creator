@@ -90,7 +90,10 @@
       "output_schema": "schemas/report.json",
       "retries": 0,
       "on_exhaust": "escalate",
-      "max_rounds": 1
+      "max_rounds": 1,
+      "review": {
+        "agent": "reviewer"
+      }
     }
   ],
   "edges": [

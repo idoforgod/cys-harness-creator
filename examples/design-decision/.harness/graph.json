@@ -51,7 +51,10 @@
       "output_schema": "schemas/verdict.json",
       "retries": 0,
       "on_exhaust": "proceed-with-gap",
-      "max_rounds": 2
+      "max_rounds": 2,
+      "review": {
+        "agent": "reviewer"
+      }
     }
   ],
   "edges": [

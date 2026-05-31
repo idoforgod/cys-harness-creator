@@ -942,6 +942,59 @@ class TestEmittedHarnessDNAFires(unittest.TestCase):
                 self.assertIn(p, sk, "orchestrator must drive the team primitive %s" % p)
 
 
+class TestA2NotDefeatedByComment(unittest.TestCase):
+    """P1-1 (audit): the A2 ALL_PRIMITIVES_PRESENT substring gate must strip HTML comments first — tokens
+    hidden in a `<!-- ... -->` disclaimer must NOT satisfy the floor while the real calls are neutered."""
+
+    def test_commented_primitives_do_not_satisfy_a2(self):
+        g = {"schema_version": "0.1", "harness_name": "a2c", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "collect", "agent": "a2c-c", "model": "haiku", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/c.json"],
+                        "write_paths": ["_workspace/c/"], "output_schema": "schemas/c.json",
+                        "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", "c.json"), "w"))
+            self.assertEqual(emit_orchestrator.emit_orchestrator(g, td, in_project=False), [])
+            skp = os.path.join(td, ".claude", "skills", "a2c-orchestrator", "SKILL.md")
+            body = open(skp, encoding="utf-8").read().replace("TeamCreate(", "TeamXreate(").replace("Agent(", "Agxnt(")
+            body += "\n<!-- this orchestrator uses neither TeamCreate( nor Agent( -->\n"
+            open(skp, "w", encoding="utf-8").write(body)
+            codes = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("ALL_PRIMITIVES_PRESENT", codes, "commented-out primitives must not satisfy A2")
+
+
+class TestProducerReviewerReview(unittest.TestCase):
+    """P1-2 (audit): a producer-reviewer harness must wire >=1 L2 review node (it exists to review)."""
+
+    def _g(self, with_review):
+        n = {"id": "make", "agent": "maker", "model": "opus", "decision_mechanism": "single",
+             "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/m.json"],
+             "write_paths": ["_workspace/m/"], "output_schema": "schemas/m.json",
+             "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}
+        if with_review:
+            n["review"] = {"agent": "reviewer"}
+        return {"schema_version": "0.1", "harness_name": "pr", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "producer-reviewer",
+                "budget": {"total_tokens": 1000, "approval_required": True}, "nodes": [n], "edges": []}
+
+    def _codes(self, g):
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", "m.json"), "w"))
+            return {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+
+    def test_producer_reviewer_without_review_fails(self):
+        self.assertIn("PRODUCER_REVIEWER_REVIEW", self._codes(self._g(False)))
+
+    def test_producer_reviewer_with_review_ok(self):
+        self.assertNotIn("PRODUCER_REVIEWER_REVIEW", self._codes(self._g(True)))
+
+
 class TestValidateRobustness(unittest.TestCase):
     """audit: the build gate must FAIL gracefully on adversarial input, not crash with a traceback."""
 

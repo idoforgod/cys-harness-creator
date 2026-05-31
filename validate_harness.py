@@ -153,6 +153,14 @@ def validate(harness_dir):
         except ValueError as ve:
             r.err("EDGE_INTEGRITY", str(ve))
 
+    # PRODUCER_REVIEWER_REVIEW (audit P1-2): a producer-reviewer harness exists to REVIEW, so it must wire
+    # >=1 L2 review node — else the genome's reviewer/fact-checker ships but the adversarial layer never fires
+    # (all 4 shipped examples had zero review nodes, incl. the producer-reviewer one).
+    if graph.get("topology") == "producer-reviewer" and not any(n.get("review") for n in nodes):
+        r.err("PRODUCER_REVIEWER_REVIEW",
+              "topology='producer-reviewer' but no node has a 'review' block — the L2 adversarial reviewer "
+              "never fires; add review:{agent:'reviewer'} to the reviewed node", gpath)
+
     # per-node: AGENT_EXISTS, AGENT_FRONTMATTER, tier V1/V2/V3, SCHEMA_FILE_EXISTS, ABSOLUTE_PATHS, conditional params
     lock_owners = {}
     for n in nodes:
@@ -470,7 +478,11 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
         if not os.path.isfile(sk):
             r.err("GRAPH_SKILL_CONSISTENCY", "no orchestrator SKILL for primitive mode: %s" % sk, sk)
         else:
-            txt = open(sk, encoding="utf-8").read()
+            # P1-1 (audit): strip HTML/markdown comments BEFORE the substring gates — else a single
+            # `<!-- this orchestrator uses neither TeamCreate( nor Agent( -->` disclaimer satisfies the A2
+            # floor / team-emit / graceful-degrade checks while the real calls are neutered. The emitted
+            # primitive calls live in the live prose (backtick code spans), never in comments.
+            txt = re.sub(r"<!--.*?-->", "", open(sk, encoding="utf-8").read(), flags=re.DOTALL)
             missing = [n["id"] for n in graph.get("nodes", []) if n["id"] not in txt]
             if missing:
                 r.err("GRAPH_SKILL_CONSISTENCY", "orchestrator SKILL omits graph nodes: %s" % ", ".join(missing), sk)
