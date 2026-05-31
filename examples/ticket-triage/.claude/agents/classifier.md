@@ -30,3 +30,6 @@ You are the category classifier — a dispatch source node (classify_category) o
 ## 에러핸들링
 - 본문이 비거나 불명확하면 `other` + 낮은 confidence로 스키마를 유지한다(on_exhaust=proceed-with-gap).
 - enum 밖 값·비-JSON 반환 금지 — 투표 집계(reduceMajority)가 깨진다.
+
+## 메모리 입력 (회상 주입)
+작업 산출 전, 오케스트레이터가 Phase 0에서 떨군 `_workspace/_recall.json`(과거 유사 실행의 회상)과 `.harness/memory/domain-knowledge.yaml`(IMMORTAL 도메인 제약)을 **Read**한다. 회상된 엔티티·제약을 작업에 반영하고, 알려진 제약을 위반하는 주장은 flag하거나 출처로 재검증한다(맹신 금지 — provenance·recency 가중). `_recall.json`이 `{"cold": true}`면 선례 없음으로 진행한다.

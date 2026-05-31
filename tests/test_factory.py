@@ -1660,5 +1660,67 @@ class TestLayer3RecallWired(unittest.TestCase):
             self.assertIn("MEMORY_RECALL_WIRED", errs, "an unwired-recall orchestrator must error")
 
 
+class TestAgentMemoryContract(unittest.TestCase):
+    """P1 (3-tier memory) — emitted agents READ the recall relay (_workspace/_recall.json) +
+    domain-knowledge as work input, so recall is actually CONSUMED (not memory-blind). A hand-written
+    body gets the contract appended (body preserved); validate's AGENT_MEMORY_CONTRACT enforces it."""
+
+    def _node(self):
+        return {"id": "a", "agent": "sa", "model": "haiku", "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": [], "outputs": ["o"], "write_paths": [],
+                "output_schema": "schemas/o.json", "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}
+
+    def _graph(self):
+        return {"schema_version": "0.1", "harness_name": "mc", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [self._node()], "edges": []}
+
+    def test_agent_body_reads_recall(self):
+        import emit_orchestrator
+        body = emit_orchestrator._agent_body(self._graph(), self._node())
+        self.assertIn("_recall.json", body, "rich agent body reads the Phase-0 recall relay")
+        self.assertIn("domain-knowledge.yaml", body, "and the IMMORTAL domain constraints")
+
+    def test_handwritten_body_gets_contract_appended(self):
+        import emit_orchestrator
+        with tempfile.TemporaryDirectory() as td:
+            adir = os.path.join(td, ".claude", "agents")
+            os.makedirs(adir)
+            open(os.path.join(adir, "sa.md"), "w", encoding="utf-8").write(
+                "---\nname: sa\ndescription: x\nmodel: haiku\ntools: Read\nmaxTurns: 20\n---\n"
+                "## 핵심역할\n손작성 본문은 보존된다.\n")
+            emit_orchestrator._write_agent_files(self._graph(), td)
+            out = open(os.path.join(adir, "sa.md"), encoding="utf-8").read()
+            self.assertIn("손작성 본문은 보존된다", out, "hand-written body preserved")
+            self.assertIn("_recall.json", out, "memory-input contract appended to a hand-written body")
+
+    def test_contract_append_is_idempotent(self):
+        import emit_orchestrator
+        with tempfile.TemporaryDirectory() as td:
+            emit_orchestrator._write_agent_files(self._graph(), td)
+            ap = os.path.join(td, ".claude", "agents", "sa.md")
+            emit_orchestrator._write_agent_files(self._graph(), td)  # re-emit
+            self.assertEqual(open(ap, encoding="utf-8").read().count("## 메모리 입력"), 1,
+                             "contract appears exactly once across re-emits")
+
+    def test_validate_enforces_agent_memory_contract(self):
+        import emit_orchestrator
+        with tempfile.TemporaryDirectory() as td:
+            g = self._graph()
+            os.makedirs(os.path.join(td, ".harness"))
+            os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", "o.json"), "w"))
+            emit_orchestrator.emit_orchestrator(g, td)
+            codes = {i["code"] for i in validate_harness.validate(td).items}
+            self.assertNotIn("AGENT_MEMORY_CONTRACT", codes, "emitted agents satisfy the contract")
+            ap = os.path.join(td, ".claude", "agents", "sa.md")
+            txt = open(ap, encoding="utf-8").read().replace("_recall.json", "REDACTED")
+            open(ap, "w", encoding="utf-8").write(txt)
+            errs = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("AGENT_MEMORY_CONTRACT", errs, "a memory-blind agent must error")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

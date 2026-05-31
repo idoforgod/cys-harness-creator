@@ -88,6 +88,18 @@ _ROLE_PRINCIPLES = {
 }
 
 
+# P1 (3-tier memory): every emitted agent READS the recall relay as work input, so the Phase-0
+# recall is actually CONSUMED (closes the field-observed 'agents are memory-blind' gap). Appended to
+# hand-written bodies too (body preserved); validate's AGENT_MEMORY_CONTRACT enforces presence.
+_MEMORY_INPUT_BLOCK = (
+    "## 메모리 입력 (회상 주입)\n"
+    "작업 산출 전, 오케스트레이터가 Phase 0에서 떨군 `_workspace/_recall.json`(과거 유사 실행의 회상)과 "
+    "`.harness/memory/domain-knowledge.yaml`(IMMORTAL 도메인 제약)을 **Read**한다. 회상된 엔티티·제약을 "
+    "작업에 반영하고, 알려진 제약을 위반하는 주장은 flag하거나 출처로 재검증한다(맹신 금지 — provenance·recency 가중). "
+    "`_recall.json`이 `{\"cold\": true}`면 선례 없음으로 진행한다.\n"
+)
+
+
 def _agent_body(graph, n):
     """Render a full per-agent body from graph node fields: role + principles + exact I/O protocol +
     mechanism + error handling + team-comms (team mode) + L2 (review nodes). Used only when no hand-written
@@ -107,7 +119,8 @@ def _agent_body(graph, n):
          "- **쓰기 경로**: %s — 이 경로 밖에 쓰지 않는다(write_path 단독 소유). 도구는 frontmatter allowlist로 제한(최소권한)." % wps,
          "", "## 에러 핸들링",
          "- 실패 시 %d회 재시도, 소진 시 on_exhaust=%s. 상충 데이터는 삭제하지 말고 출처를 병기하며, 미검증은 명시한다."
-         % (n.get("retries", 0), n.get("on_exhaust", "escalate"))]
+         % (n.get("retries", 0), n.get("on_exhaust", "escalate")),
+         "", _MEMORY_INPUT_BLOCK.rstrip("\n")]
     if mech == "majority-vote":
         p += ["", "## 메커니즘: majority-vote",
               "독립 투표자(%d명, quorum %s)로 동작한다 — 다른 투표를 보지 않고 자기 근거로 판단한다."
@@ -160,6 +173,9 @@ def _write_agent_files(graph, harness_dir, in_project=False):
         maxturns = existing_fm.get("maxTurns") or str(_DEFAULT_MAXTURNS)
         if not body.strip():
             body = _agent_body(graph, n)
+        # P1: guarantee the memory-input contract even for a hand-written body (preserved) — append if absent.
+        if "_recall.json" not in body:
+            body = body.rstrip("\n") + "\n\n" + _MEMORY_INPUT_BLOCK
         marker = ("cys_emitted: \"%s\"\n" % graph["harness_name"]) if in_project else ""
         fm = ("---\n"
               "name: %s\n"

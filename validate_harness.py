@@ -197,6 +197,13 @@ def validate(harness_dir):
             if fm.get("model") and n.get("model") and fm["model"] != n["model"]:
                 r.err("TIER_MISMATCH", "node '%s'.model=%s != agent frontmatter model=%s"
                       % (nid, n["model"], fm["model"]), nid)
+            # AGENT_MEMORY_CONTRACT (3-tier P1): the agent must READ the Phase-0 recall relay
+            # (_workspace/_recall.json) so recall is actually CONSUMED, not vestigial — closes the
+            # field-observed 'agents are memory-blind' gap (presence of Read perm is not consumption).
+            if "_recall.json" not in open(ap, encoding="utf-8").read():
+                r.err("AGENT_MEMORY_CONTRACT",
+                      "agent '%s' lacks the memory-input contract (does not Read _workspace/_recall.json "
+                      "— recall is never consumed)" % n["agent"], nid)
         # REVIEW_AGENT_PRESENT (M1): a review node's adversarial agent must have a definition file so
         # the L2 layer can actually spawn it (genome ships reviewer/fact-checker; this enforces it).
         rv = n.get("review")

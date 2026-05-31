@@ -30,3 +30,6 @@ classify_category 승자(`{category,...}`)와 classify_priority 승자(`{priorit
 ## 에러핸들링
 - 한쪽 입력이 null/누락이면(gap): 빠진 축은 가장 안전한 기본값으로 채운다(category=other→triage_backlog, priority=P3→72h)고 `summary`에 명시.
 - 매핑 밖 값·비-JSON 반환 금지. 이 노드 실패 시 on_exhaust=escalate(사람 검토로 에스컬레이션).
+
+## 메모리 입력 (회상 주입)
+작업 산출 전, 오케스트레이터가 Phase 0에서 떨군 `_workspace/_recall.json`(과거 유사 실행의 회상)과 `.harness/memory/domain-knowledge.yaml`(IMMORTAL 도메인 제약)을 **Read**한다. 회상된 엔티티·제약을 작업에 반영하고, 알려진 제약을 위반하는 주장은 flag하거나 출처로 재검증한다(맹신 금지 — provenance·recency 가중). `_recall.json`이 `{"cold": true}`면 선례 없음으로 진행한다.
