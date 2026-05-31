@@ -63,8 +63,11 @@
 ### P2 — 라이브 DNA 발화 end-to-end 증명 ✅
 - 중첩 인터랙티브 `claude` 세션은 띄울 수 없으므로, **emit된 하네스의 wired hook을 Claude Code가 부르는 방식(`CLAUDE_PROJECT_DIR` + 실제 `.harness/state.yaml`)으로 subprocess 구동**해 DNA 발화를 증명(durable, CI-able). `TestEmittedHarnessDNAFires`: SessionStart `sot_init`→SOT 시드(graph에서 max_spawns) → `spawn_counter`로 spawns_used 증분 → `budget_block` 천장 **exit-2** 발화 / QA L0 누락산출물 **exit-2** / 게놈 보안 hook `rm -rf`·`git reset --hard` 차단 / Tier-II 메모리 시드 / 오케스트레이터 실제 team 프리미티브. 60 tests green.
 
-## ⏳ 남은 일 (P2)
-- **CYS-WINS 재측정** — 어려운/적대적 도메인·스코어카드로 ≥15pp 시도(현재 +12.5pp는 현대 opus가 강해 구조적으로 1 assertion 격차). *주의: reframed goal은 parity이지 우월성이 아니다 — 벤치마크 게이밍 금지, 정직 보고.*
+### P2 — CYS-WINS 재측정 (정직한 null 결과) ✅
+- verification-heavy 도메인(passkey/WebAuthn sync, 인용·검증 규율 8 assertion)에서 **n=5 blind h2h**: C2(CYS 파이프라인 gather→verify reflect-then-revise→synthesize+L2 review) vs C3(single-pass opus). **결과: median(C2)=1.0 vs median(C3)=1.0 → 0.0pp `INCONCLUSIVE` (천장 동률, 둘 다 8/8, variance 0).**
+- **NOT CYS-WINS** — 날조하지 않는다. 두 번째 정직 데이터포인트(deep-research +12.5pp, verification-heavy 0pp 모두 INCONCLUSIVE).
+- **P1.4 하드닝 실전 검증**: `n_dropped=0`(5/5 valid) — 이전 7/12 flake 패턴이 재시도+drop으로 해소됨.
+- **구조적 결론**: 현대 opus single-pass가 객관적 scorecard에서 이미 천장(8/8)이라 하네스가 **마진으로 이기는 것은 구조적으로 불가**. 더 많은 도메인을 뒤져 ≥15pp를 낚는 것은 **벤치마크 게이밍**(+37.5pp 교훈)이므로 중단. 하네스의 가치는 scorecard 승리가 아니라 **parity(실제 목표) + 결정론적 인프라**(DNA 발화·비용거버넌스·머신체크 계약 — scorecard가 못 잡는 보장)에 있다. **parity 목표는 충족.**
 
 ## ❌ 폐기된 규칙 — 더 이상 적용 안 함
 - **NO_COMMANDS** 폐기(게놈 commands 정상; 새 도메인 커맨드는 직접 안 만듦). **"모든 에이전트 opus"** → role-tier 정책. **"team이 기본 / Mode-A(workflow)가 기본"** → 둘 다 폐기: **workflow 은퇴**, 빌드 하네스는 **all-6(team/hybrid)**.
