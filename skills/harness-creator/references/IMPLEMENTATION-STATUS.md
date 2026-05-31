@@ -2,7 +2,20 @@
 
 > **이 문서가 다른 모든 reference의 aspirational 서술에 우선한다.** reference가 무엇을 설명하든, 실제로 emit/validate에 구현됐는지는 여기로 확정한다. (출처: `emit_orchestrator.py`·`emit_domain_skill.py`·`audit_harness.py`·`evolve_harness.py`·`eval_topology.py`·`inherit_genome.py`·`validate_harness.py`·`templates/hooks/`·`tests/test_factory.py` 실측. 설계 전모: `design/STRATEGY-AND-DESIGN.md`.)
 >
-> **현 상태: 58 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치(B2)·lift 빌드배선(P1.3)·h2h 측정보강(P1.4) 완료.**
+> **현 상태: 72 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치·lift 배선·h2h 보강 완료 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4 보강 완료.**
+
+## 🔧 적대적 전수감사 보강 (audit wkm8lt82v → reinforcement)
+7-dimension 적대적 audit(A1/A2/parity/DNA/factory-workflow/contract/robustness)에서 18 confirmed 결함 발견(verdict PARTIAL) → 수정:
+- **P0-1** SOT 경로 불일치(genome `sot_paths` `.claude/`만 읽어 Tier-I 스냅샷이 CYS `.harness/state.yaml` 누락) → `.harness/` 우선 해석.
+- **P0-2** `hybrid`가 A2 실패하는 死모드 → team 레시피 emit.
+- **P0-3** 자족 설치가 prompt-runner `claude -p` 실행기·workflow.js CANONICAL 광고(A1 위반) → 제외+`PROMPT_RUNNER_ABSENT` 파일시스템 게이트+self-heal+매니페스트 재배선.
+- **robustness×4**: validate 크래시(malformed graph)→clean fail; `GRAPH_SCHEMA_DEGRADED` warn; LIFT 수학신뢰(forged register 차단); 기본 RUNTIME_MANIFEST 프리미티브화.
+- **P1-1** A2 substring 게이트 주석무력화 → HTML 주석 strip.
+- **P1-2** L2 리뷰 예제 0노드 → deep-research/design-decision에 `review` + `PRODUCER_REVIEWER_REVIEW` 코드.
+- **P1-3** L1/L1.5/L2 fire-on-presence → **L1 필수(fail-closed)**: verification log 없으면 exit-2(L0·L1·budget 필수, L1.5·L2 fire-on-presence).
+- **P1-4** 4-스테이지 워크플로 미강제 → e2e self-test(predicates→warrant→audit→emit→validate) + `warrant --graph`가 `.harness/warrant.json` 기록 + opt-in `BUILD_GATES` 정책(기본 off; warn/error 시 warrant.json·audit.json·APPROVED 필수).
+- 신규 validate 코드: `PROMPT_RUNNER_ABSENT`·`GRAPH_SCHEMA_DEGRADED`·`PRODUCER_REVIEWER_REVIEW`·`BUILD_GATES_SKIPPED`.
+- **남은 audit 백로그(P2, 미구현)**: 예제 현실성(1-node가 모든 topology conform)·agent 본문 빈약·graph provenance·i18n·8 use case run-level·RLM Tier-II 코드백업(현 prose). audit 전체: workflow output wkm8lt82v.
 
 ## ✅ 구현·검증 완료 (M0–M8)
 
