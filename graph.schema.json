@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "graph.schema.json",
   "title": "CYS Harness graph.json",
-  "description": "The central harness contract. Spine field names MUST NOT be renamed. workflow.js, harness.lock, validate_harness.py, and the pre-flight cost band all derive from this file. edges express ORDERING ONLY (pipeline/parallel/loop scheduling) and are NOT a TaskCreate depends_on graph.",
+  "description": "The central harness contract. Spine field names MUST NOT be renamed. emit_orchestrator.py, validate_harness.py, and the pre-flight cost band (warrant.py) all derive from this file; emit stamps a graph.lock (sha256 provenance). edges express scheduling ORDER (from runs before to; pipeline/parallel/loop) — they are NOT a literal field on the runtime, but the team emitter DERIVES each task's TaskCreate depends_on from the incoming edges (edge to==node => that node depends on the edge's from).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "harness_name", "harness_version", "execution_mode", "topology", "budget", "nodes", "edges"],

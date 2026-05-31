@@ -2,7 +2,7 @@
 
 # 아키텍처 패턴 — Topology × Decision-Mechanism 설계 + 산출 예시
 
-> ✅ **실행 기질(2026-05-31 기준)**: 산출 하네스의 canonical 실행모델은 **Claude Code 프리미티브**다. `emit_orchestrator.py`가 `graph.json` → **오케스트레이터 SKILL.md** + `.claude/agents/<agent>.md`(frontmatter의 model·tools·maxTurns를 Agent 도구가 **런타임 강제**)를 emit하고, 라이브 호스트 세션이 `Agent`(디폴트=agent, 그리고 현재 hybrid도 동일 레시피) / `TeamCreate`·`SendMessage`(team)로 그래프를 돈다(hybrid의 Phase별 혼합 emit은 미구현 — IMPLEMENTATION-STATUS.md 우선). 이 기질에서만 상속된 AWF 게놈(lifecycle hook·L0-L2 게이트·SOT·적대적 리뷰)이 실제로 발화한다.
+> ✅ **실행 기질(2026-05-31 기준)**: 산출 하네스의 canonical 실행모델은 **Claude Code 프리미티브**다. `emit_orchestrator.py`가 `graph.json` → **오케스트레이터 SKILL.md** + `.claude/agents/<agent>.md`(frontmatter의 model·tools·maxTurns를 Agent 도구가 **런타임 강제**)를 emit하고, 라이브 호스트 세션이 `Agent`(agent) / `TeamCreate`·`SendMessage`(team·**hybrid** — hybrid는 P0-2 이후 team과 동일하게 team 프리미티브를 emit)로 그래프를 돈다(미구현은 hybrid의 Phase별 기질 *혼합* emit뿐 — IMPLEMENTATION-STATUS.md 우선). 이 기질에서만 상속된 AWF 게놈(lifecycle hook·L0-L2 게이트·SOT·적대적 리뷰)이 실제로 발화한다.
 >
 > **Mode-A `workflow.js`는 제품에서 은퇴**(`WORKFLOW_RETIRED`)했다. `emit_workflow.py`·`h2h_suite.workflow.js`·lift 프로브는 **공장 내부 측정 전용 도구**로만 살아남는다 — 산출 하네스의 런타임이 아니다. 이 문서에서 `workflow.js`가 등장하는 곳은 전부 "공장 내부 측정"으로 라벨된 자리뿐이다.
 
@@ -33,6 +33,7 @@
 17. [실제 예시 C — design-decision (producer-reviewer + debate-with-judge)](#17-실제-예시-c--design-decision-producer-reviewer--debate-with-judge)
 18. [세 예시 교차 비교 + 보존된 설계 지혜](#18-세-예시-교차-비교--보존된-설계-지혜)
 19. [산출물 패턴 요약 — graph.json이 척추다](#19-산출물-패턴-요약--graphjson이-척추다)
+20. [외부 출처 근거 (학계·표준 1:1 대조)](#20-외부-출처-근거-학계표준-11-대조)
 
 ---
 
@@ -44,7 +45,7 @@
 |---|---|
 | `.claude/agents/`를 계약 없이 직접 저작 | **먼저 `graph.json`(불변 계약)을 저작** → 도구가 컴파일·검증 |
 | 6개 패턴(데이터 흐름 한 축) | **7 topology × 4 decision-mechanism** (두 직교 축) |
-| 단일 실행모델(팀) | **agent(디폴트) / team / hybrid 프리미티브 기질** — 상속된 AWF 게놈이 발화하는 곳 |
+| 단일 실행모델(팀) | **team(빌드 기본) / hybrid / agent(개념 기질) 프리미티브 기질** — 상속된 AWF 게놈이 발화하는 곳(빌드 하네스는 A2 floor상 team/hybrid) |
 | 모든 에이전트 `model: opus` | **role→tier 정책** (gather/extract/format/qa-scan=haiku, voter/debater/reviser=sonnet, synthesis/judge/critic/architecture=opus) |
 | advisory prose 규칙 | **머신체크 게이트** (`validate_harness.py` 머신체크 세트가 위반 시 빌드 실패) |
 
@@ -94,7 +95,7 @@
 - **`edges`는 순서(ordering)만 표현한다.** pipeline 스케줄링/parallel fan-out/loop 경계를 정의할 뿐, TaskCreate식 `depends_on` 의존성 그래프가 아니다. (다만 team 모드에서 오케스트레이터가 `TaskCreate(depends_on=…)`로 변환할 때 edges가 의존 정보로 *재사용*된다 — 아래 §16/§8.)
 - **`topology`는 graph 전체의 형태**, **`decision_mechanism`은 노드 단위**다. 그래서 한 pipeline 안에서 노드마다 다른 mechanism을 쓸 수 있다(예: deep-research의 verify=reflect-then-revise, 나머지=single).
 - 컴파일: `emit_orchestrator.py`가 `graph.json` → **오케스트레이터 SKILL.md**(프리미티브 실행 레시피: `Agent()` spawn / `TeamCreate`·`TaskCreate`·`SendMessage`·`TeamDelete` / 노드별 mechanism 확장) + 노드마다 `.claude/agents/<agent>.md`(model·tools·maxTurns 런타임강제 frontmatter)를 렌더한다.
-- 이 계약은 **조언이 아니라 기계 게이트로 강제된다**: `validate_harness.py`(스키마·agent 파일 존재·model 티어·엣지 무결성·사이클·write-path 중복·절대경로·schema 파일 존재·genome 존재·runtime 선언·doc-drift), `warrant.py`(Phase -1 비용 게이트). 역할→티어 정책의 **출처**는 `model-tier-policy.js`이나, **강제는 `validate_harness.py`가 내장한 in-Python 미러(`TIER_BY_ROLE_CLASS`)가 한다**(cross-lang shelling 회피; JS 파일로 shell-out하지 않으므로 둘의 동기화가 규칙).
+- 이 계약은 **조언이 아니라 기계 게이트로 강제된다**: `validate_harness.py`(스키마·agent 파일 존재·model 티어·엣지 무결성·사이클·write-path 중복·절대경로·schema 파일 존재·genome 존재·runtime 선언·doc-drift), `warrant.py`(Phase -1 비용 게이트). 역할→티어 정책의 **단일 SoT는 `role-class-policy.json`**이며, `model-tier-policy.js`와 `validate_harness.py`가 **둘 다 이 파일을 로드**한다(손복사 in-Python 미러 없음·JS shell-out 없음·동기화 규칙 불필요 — 같은 파일을 읽으므로 둘이 드리프트할 수 없다; `tests/test_factory.py`의 `TestTierPolicyMirror`가 ids×agents×mechs 전수곱 코퍼스로 JS≡Py 분류 동치를 보증).
 
 ---
 
@@ -192,7 +193,7 @@
 `_topology_addendum` 레시피(`### 토폴로지: expert-pool`): 먼저 **라우터 노드**(`Agent`, haiku/sonnet)가 입력을 분류한다. 오케스트레이터는 분류 결과에 따라 **매칭된 전문가만** `Agent(subagent_type=<expert>)`로 조건부 spawn한다(모든 전문가를 항상 부르지 않음 — 비용 절감). 팀이 아니라 sub-agent 디스패치다.
 
 - **적합:** 입력 종류가 다양하고 각 종류마다 다른 전문가가 필요하지만, 한 입력에는 일부 전문가만 관여할 때(문의 분류 후 매칭 전문가 호출).
-- **graph.json:** `topology: "expert-pool"`, 라우터 노드 + 조건부 전문가 노드들. 보통 `execution_mode: "agent"`(sub-agent 디스패치).
+- **graph.json:** `topology: "expert-pool"`, 라우터 노드 + 조건부 전문가 노드들. `execution_mode: "team"`(또는 hybrid) — 동작은 라우터+조건부 전문가의 sub-agent 디스패치지만, A2 floor(`ALL_PRIMITIVES_PRESENT`)상 빌드 하네스는 team/hybrid로 emit해야 한다(팀 미사용 시 sub-agent로 graceful-degrade).
 
 ### 4.7 hierarchical (2단계 위임, depth ≤ 2)
 
@@ -291,7 +292,7 @@ n명의 debater가 max_rounds 동안 논쟁하고, judge가 최종 판정.
 |------|--------|------|------|
 | **`agent`** | Agent 도구 순차/병렬 sub-spawn | `emit_orchestrator.py` | 단순 sub-agent 디스패치(expert-pool 등). 부모/자식 hook 발화가 가장 확실 |
 | **`team`** | TeamCreate 피어팀 + TaskCreate(deps) + SendMessage + TeamDelete | `emit_orchestrator.py` | 팀원이 중간 산출을 실시간 공유·조율할 때. 8 use case·3 예시 모두 team |
-| **`hybrid`** | (현재) agent recipe + topology addendum와 동일 emit | `emit_orchestrator.py` | enum 값으로는 유효하나 **Phase별 agent/team 혼합 emit은 미구현(future work)** — `emit_orchestrator`의 `else` 분기로 떨어져 agent와 동일한 순차 Agent spawn 레시피를 낸다. team 프리미티브는 topology addendum(fan-out/supervisor/expert-pool/hierarchical)으로만 주입된다 |
+| **`hybrid`** | (현재) **team 레시피**를 emit (TeamCreate/TaskCreate(deps)/SendMessage/TeamDelete) | `emit_orchestrator.py` | **P0-2 이후 `hybrid`는 `team`과 같은 분기**(`emit_orchestrator.py`의 `if mode in ("team","hybrid")` 분기 → `_team_recipe`)로 실제 team 프리미티브를 emit한다 — A2 `ALL_PRIMITIVES_PRESENT` floor를 통과한다. **미구현은 Phase별 agent/team 기질 *혼합* emit뿐**(future work), team 프리미티브 emit 자체가 아니다 |
 | `workflow` | ~~Workflow 도구 `workflow.js`~~ | ~~`emit_workflow.py`~~ | **은퇴(`WORKFLOW_RETIRED`).** 산출 런타임 아님 — `emit_workflow.py`/`h2h_suite.workflow.js`는 **공장 내부 측정 전용** 도구로만 잔존 |
 
 > **팀 graceful-degrade (A2-iii):** team 모드라도 `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` 플래그가 없으면 `_team_recipe`가 각 task를 `Agent(subagent_type=…)` fan + `_workspace/` 핸드오프로 강등한다 — 팀 없이도 동일 그래프가 실행된다.
@@ -300,10 +301,11 @@ n명의 debater가 max_rounds 동안 논쟁하고, judge가 최종 판정.
 
 ```
 실시간 inter-agent 협상(팀원이 서로의 중간 산출을 보며 조율)이 품질에 본질적인가?
-├── No  → execution_mode = agent       ← 순차/병렬 sub-spawn. 부모/자식 hook 발화 확실.
+├── No  → 개념상 agent로 충분 — 단, **빌드 하네스는 A2 floor상 team/hybrid 필수**(아래 주의)
 ├── Yes → execution_mode = team        ← TeamCreate 피어팀 (8 use case·3 예시 디폴트)
-└── Phase별 혼합 → execution_mode = hybrid  ← enum은 받지만 현재 emit는 agent recipe와 동일(Phase별 혼합 emit 미구현)
+└── Phase별 혼합 → execution_mode = hybrid  ← 현재 emit는 **team 레시피**와 동일(P0-2); Phase별 기질 *혼합* emit만 future work
 ```
+> **A2 floor 주의:** 순수 `agent`는 `TeamCreate(`를 emit하지 않아 `ALL_PRIMITIVES_PRESENT`(6 프리미티브 전부)를 **validate에서 실패**한다(`emit→validate` 재현됨). 따라서 *빌드되는* 하네스의 `execution_mode`는 **team 또는 hybrid**여야 한다 — 위 트리에서 "No"로 떨어져도 team/hybrid로 emit하고, 팀 미사용 시 sub-agent로 graceful-degrade한다(SKILL.md 원칙 2 · IMPLEMENTATION-STATUS 우선).
 
 > **피벗의 핵심:** 초기 CYS는 "workflow.js가 기본"이었으나, 그 기질에서 AWF 게놈 전체가 휴면함이 실측됐다(두 실행평면 직교). 피벗 후 **프리미티브가 유일한 산출 기질** — AWF가 설계된 곳이고, 게놈이 실제로 발화하며, 모델티어가 런타임 강제된다. 디스크의 4개 예제 하네스(deep-research·ticket-triage·design-decision·competitor-watch)는 전부 `execution_mode: team`으로 마이그레이션됐다.
 
@@ -442,7 +444,7 @@ maxTurns: 25                # Agent 도구가 런타임 강제
 
 ## 13. 복합 패턴 사고
 
-원본은 단일 패턴보다 복합이 흔하다고 가르쳤다. CYS에서 "복합"은 **topology는 하나, 노드별 mechanism은 혼합**으로 표현된다(hybrid execution_mode로 단계별 기질을 섞는 것은 enum에는 있으나 **emit가 아직 agent 레시피와 동일** — Phase별 혼합은 미구현 future work, §8).
+원본은 단일 패턴보다 복합이 흔하다고 가르쳤다. CYS에서 "복합"은 **topology는 하나, 노드별 mechanism은 혼합**으로 표현된다(hybrid execution_mode의 emit는 **현재 team 레시피와 동일**(P0-2) — 미구현은 Phase별 agent/team 기질 *혼합* emit뿐, §8).
 
 | 원본 복합 패턴 | CYS 표현 | 예시 |
 |---|---|---|
@@ -462,7 +464,7 @@ maxTurns: 25                # Agent 도구가 런타임 강제
 
 ## 14. idoforgod 8 use case → topology 배정
 
-CYS의 parity bar(M7 / R2)는 idoforgod README의 **8 use case 전부에 conforming 하네스를 emit**하는 것이다. `eval_topology.py`가 build-level 적합성(topology + exec_mode + all-6 프리미티브 floor + 필수 DNA 섹션 + topology 레시피)을 머신체크한다. 다음 배정은 `tests/test_factory.py`의 `TestEightUseCases.USE_CASES`에 박혀 있는 그대로다(전부 conform, ≥4 first-class 토폴로지 행사):
+CYS의 parity bar(M7 / R2)는 idoforgod README의 **8 use case 전부에 conforming 하네스를 emit**하는 것이다. `eval_topology.py`가 build-level 적합성(topology + exec_mode + all-6 프리미티브 floor + 필수 DNA 섹션 + topology 레시피)을 머신체크한다. 다음 배정은 `tests/test_factory.py`의 `TestEightUseCases.USE_CASES`에 박혀 있는 그대로다(전부 conform, **5종 distinct 토폴로지** 행사 — 그 중 first-class는 3종: fan-out-fan-in·supervisor·hierarchical; expert-pool는 8 use case에 미배정):
 
 | # | idoforgod use case | topology | execution_mode | 배정 근거 |
 |---|---|---|---|---|
@@ -475,7 +477,7 @@ CYS의 parity bar(M7 / R2)는 idoforgod README의 **8 use case 전부에 conform
 | 7 | Data Pipeline Design | `hierarchical` | team | sub-coordinator 팀(Level-1) → 각자 sub-agent(Level-2), depth ≤ 2 |
 | 8 | Marketing Campaign | `producer-reviewer` | team | 캠페인안 생성 ↔ 검수의 반복 정제 루프 |
 
-> 행사된 토폴로지: fan-out-fan-in(×2)·pipeline(×2)·producer-reviewer(×2)·supervisor·hierarchical — 5종 first-class 토폴로지. 8개 모두 `execution_mode: team`이다(현 parity 기준은 build-level — graph가 계약에 conform하고, 오케스트레이터가 올바른 topology 레시피·A2 all-primitive floor·필수 DNA를 갖는지). 런레벨 head-to-head는 별도 quota-gated 레인이다.
+> 행사된 토폴로지: fan-out-fan-in(×2)·pipeline(×2)·producer-reviewer(×2)·supervisor·hierarchical — **5종 distinct 토폴로지**(그 중 first-class 3종: fan-out-fan-in·supervisor·hierarchical; pipeline·producer-reviewer는 base 토폴로지로 `_topology_addendum` 레시피 없음 — §4/§7 정의). 8개 모두 `execution_mode: team`이다(현 parity 기준은 build-level — graph가 계약에 conform하고, 오케스트레이터가 올바른 topology 레시피·A2 all-primitive floor·필수 DNA를 갖는지). 런레벨 head-to-head는 별도 quota-gated 레인이다.
 
 다음 세 절(§15–§17)은 이 표의 일반론을 **디스크에 실재하는 3개 하네스**(`examples/{deep-research,ticket-triage,design-decision}/`)로 못박는다. 모든 필드·model·rationale은 디스크 그대로다.
 
@@ -707,7 +709,7 @@ CYS의 parity bar(M7 / R2)는 idoforgod README의 **8 use case 전부에 conform
 <harness>/
 ├── .harness/
 │   ├── graph.json          ← 척추. 가장 먼저, 손으로 작성. graph.schema.json으로 검증.
-│   ├── GENOME.json / RUNTIME.json / MANIFEST.json / harness.lock  ← 도구 생성
+│   ├── GENOME.json / RUNTIME.json / graph.lock / constants.json  ← 도구 생성
 ├── .claude/
 │   ├── skills/<harness>-orchestrator/SKILL.md  ← emit_orchestrator.py가 graph.json에서 렌더 (canonical 런타임)
 │   ├── agents/<agent>.md    ← 노드마다. model·model_rationale·tools·maxTurns frontmatter (Agent가 런타임 강제)
@@ -728,3 +730,20 @@ CYS의 parity bar(M7 / R2)는 idoforgod README의 **8 use case 전부에 conform
 9. (공장 내부) `lift_gate.py`로 baseline 대비 lift 입증 → register.
 
 > 핵심 전환: 원본은 "에이전트 파일을 쓰고 팀으로 조율"했다. CYS는 **graph.json 계약을 먼저 쓰고, 도구가 컴파일·검증·측정**한다. 산출 하네스는 **오케스트레이터 SKILL + .claude/agents**(Claude Code 프리미티브)로 실행되며 상속된 AWF 게놈이 발화한다. 에이전트는 계약에서 파생되는 부품이지 출발점이 아니다.
+
+---
+
+## 20. 외부 출처 근거 (학계·표준 1:1 대조)
+
+이 스킬의 결정론 환원 **불가능한** 설계 선택(LLM 추론에 본질적으로 위임되는 개념)은 임의 발명이 아니라 학계 주류·산업 표준 문헌으로 뒷받침된다. 4개 `decision_mechanism`·7개 topology·model-tier 라우팅을 1:1로 대조한다(검증 완료, 2026-05-31; 출처 없는 설계는 채택 금지 원칙).
+
+| 스킬 개념 (원문) | 주류 명칭 | 출처 (저자·연도·제목·게재) |
+|---|---|---|
+| `decision_mechanism: "majority-vote"` (병렬 투표자 → quorum 다수결) | **Self-Consistency** (샘플링된 추론 경로의 다수결) | Wang, Wei, Schuurmans, Le, Chi, Narang, Chowdhery, Zhou (2022), *Self-Consistency Improves Chain of Thought Reasoning in Language Models*, ICLR 2023 (arXiv:2203.11171) |
+| `decision_mechanism: "debate-with-judge"` (N debater × rounds → judge 판정) | **Multiagent Debate** + **LLM-as-judge** | Du, Li, Torralba, Tenenbaum, Mordatch (2023), *Improving Factuality and Reasoning in Language Models through Multiagent Debate*, ICML 2024 (arXiv:2305.14325) · Zheng et al. (2023), *Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena*, NeurIPS 2023 D&B (arXiv:2306.05685) · 계보: Irving, Christiano, Amodei (2018), *AI Safety via Debate* (arXiv:1805.00899) |
+| `decision_mechanism: "reflect-then-revise"` (critic → reviser 반복, approved 시 종료) | **Self-Refine / Reflexion** (자기피드백 반복 정련) | Madaan et al. (2023), *Self-Refine: Iterative Refinement with Self-Feedback*, NeurIPS 2023 (arXiv:2303.17651) · Shinn, Cassano, Berman, Gopinath, Narasimhan, Yao (2023), *Reflexion: Language Agents with Verbal Reinforcement Learning*, NeurIPS 2023 (arXiv:2303.11366) |
+| 7 topology 중 `supervisor`·`hierarchical`·`pipeline`·`fan-out-fan-in`·`producer-reviewer` | 주류 멀티에이전트 오케스트레이션 패턴 (supervisor·hierarchical·network·parallelization·evaluator-optimizer) | LangGraph/LangChain (2024), *Multi-Agent Architectures* 공식 문서 (langchain-ai.github.io/langgraph) · Anthropic Engineering (2024), *Building Effective Agents* (orchestrator-workers·evaluator-optimizer·parallelization) |
+| topology `dispatch` (라우터 → 병렬 워커 → 수집) | **Scatter-Gather** (표준 통합 패턴; `dispatch`는 본 스킬 고유 명칭) | Hohpe & Woolf (2003), *Enterprise Integration Patterns — Scatter-Gather / Recipient List*, Addison-Wesley (ISBN 0321200683) |
+| model-tier 라우팅 (gather/extract/format/qa-scan→haiku, voter/debater/reviser→sonnet, synthesis/judge/critic/architecture→opus) | **비용-품질 라우팅 캐스케이드** | Chen, Zaharia, Zou (2023), *FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance* (arXiv:2305.05176, TMLR 2024) · Ong et al. (2024), *RouteLLM: Learning to Route LLMs with Preference Data* (arXiv:2406.18665, ICLR 2025) |
+
+> 결정론 환원 **가능한** 단계(역할→티어 매핑·fanout/spawn 계산·번호/존재 검사·날짜·범위)는 LLM이 재추론하지 않도록 파이썬으로 강제한다(`role-class-policy.json` 단일 SoT·`sot_init.estimate_max_spawns` baking·`validate_harness.py` 49 머신체크 코드). 위 표의 개념들은 *환원 불가능한* LLM 추론 위임으로, 학계/표준 출처로 정당성을 입증한다.

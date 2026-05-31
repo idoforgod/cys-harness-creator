@@ -47,8 +47,14 @@ def main():
     if len(sys.argv) < 3:
         print("usage: eval_topology.py <harness_dir> <expected.json>", file=sys.stderr); sys.exit(2)
     hd, ep = os.path.abspath(sys.argv[1]), sys.argv[2]
-    graph = json.load(open(os.path.join(hd, ".harness", "graph.json"), encoding="utf-8"))
-    expected = json.load(open(ep, encoding="utf-8"))
+    gp = os.path.join(hd, ".harness", "graph.json")
+    try:
+        graph = json.load(open(gp, encoding="utf-8"))
+        expected = json.load(open(ep, encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        print("eval_topology: cannot read graph.json/expected.json: %s" % e, file=sys.stderr); sys.exit(2)
+    if not graph.get("harness_name"):
+        print("eval_topology: graph.json missing harness_name", file=sys.stderr); sys.exit(2)
     sk = os.path.join(hd, ".claude", "skills", graph["harness_name"] + "-orchestrator", "SKILL.md")
     skill_text = open(sk, encoding="utf-8").read() if os.path.isfile(sk) else ""
     mism = match(graph, skill_text, expected)

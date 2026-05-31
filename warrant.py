@@ -182,11 +182,6 @@ def main():
     ap.add_argument("--graph", help="graph.json whose .nodes feed cost_band (else canonical)")
     args = ap.parse_args()
 
-    if args.predicates:
-        with open(args.predicates) as f:
-            preds = json.load(f)
-    else:
-        preds = DEEP_RESEARCH_PREDICATES
     exec_mode = "agent"
     if args.graph:
         with open(args.graph) as f:
@@ -195,6 +190,26 @@ def main():
         exec_mode = g.get("execution_mode", "agent")
     else:
         nodes = DEEP_RESEARCH_NODES
+
+    if args.predicates:
+        with open(args.predicates) as f:
+            preds = json.load(f)
+    elif args.graph:
+        # When invoked with --graph alone (the P4 cost-band step), derive the verdict from THIS harness's
+        # own predicates.json (the PRE step writes it next to graph.json) rather than the canonical
+        # deep-research default — else the persisted warrant.json verdict describes the wrong domain.
+        # A present-but-corrupt predicates.json (partial write / hand-edit) must degrade gracefully, not
+        # crash the gate — same resume-safe (OSError, ValueError) contract as _load_constants.
+        sib = os.path.join(os.path.dirname(os.path.abspath(args.graph)), "predicates.json")
+        preds = DEEP_RESEARCH_PREDICATES
+        if os.path.isfile(sib):
+            try:
+                with open(sib, encoding="utf-8") as f:
+                    preds = json.load(f)
+            except (OSError, ValueError):
+                preds = DEEP_RESEARCH_PREDICATES
+    else:
+        preds = DEEP_RESEARCH_PREDICATES
 
     verdict = classify(preds)
     band = cost_band(nodes, execution_mode=exec_mode)

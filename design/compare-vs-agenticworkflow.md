@@ -1,8 +1,10 @@
-All claims verified on disk:
+> ⚠️ **PRE-PIVOT 역사 스냅샷 (2026-05 프리미티브 피벗 *이전*, Mode-A `workflow.js` 시절).** 아래 "verified on disk" 수치는 **현재 산출 하네스와 다르다.** 피벗 후 산출 하네스는 **단일 오케스트레이터-skill 런타임**만 가진다 — `workflow.js`는 **은퇴**(`WORKFLOW_RETIRED`, emit 안 됨), `prompt-runner`는 **제외·purge**(`_NONPRIMITIVE_EXCLUDES`·`PROMPT_RUNNER_ABSENT` 강제), `harness.lock`/`MANIFEST.json`은 미emit(대신 `graph.lock` sha256 provenance). 현 실측(`examples/deep-research`): ~177 파일·~95 hooks·prompt-runner 0·workflow.js 0. 아래 수치(289 파일/118 hooks/두 런타임 공존)는 **역사 기록**으로만 읽을 것 — 현 상태는 `IMPLEMENTATION-STATUS.md` 우선.
+
+All claims below were verified on disk AT THE TIME (pre-pivot):
 - Engine compiles cleanly (all 9 py files).
 - `genome_file_count: 228` confirmed in GENOME.json provenance stamp; vendored genome dir has 230 (228 + 2 incidental).
-- Child carries `.harness/` with graph.json, workflow.js (11.5KB emitted), harness.lock, MANIFEST.json, GENOME.json — CYS engine artifacts — PLUS the full AWF genome (289 total files, 118 .claude hooks, prompt-runner present).
-- 3 topologies (pipeline/dispatch/producer-reviewer) and 4 decision mechanisms (single/majority-vote/debate/reflect) confirmed in emit_workflow.py.
+- (PRE-PIVOT) Child carried `.harness/` with graph.json, workflow.js (11.5KB emitted), harness.lock, MANIFEST.json, GENOME.json PLUS the full AWF genome (289 files, 118 hooks, prompt-runner present). **현재는 단일 오케스트레이터 런타임 — prompt-runner/workflow.js 부재(위 배너).**
+- 3 topologies (pipeline/dispatch/producer-reviewer) and 4 decision mechanisms confirmed in emit_workflow.py (공장내부 측정 도구; 제품 emit은 `emit_orchestrator.py`, 7 토폴로지).
 
 The critical honesty point holds: `lift-gate-fixture.json` self-labels as an M1 *sample* fixture (`"_note": "M1 lift-gate sample fixture..."`), confirming performance evidence is hand-authored/session-measured, not repo-reproducible runs.
 

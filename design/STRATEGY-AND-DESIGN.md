@@ -26,6 +26,8 @@ ONE canonical name per concept; the aliases are listed once here and never used 
 **Ground-truth corrections applied** (verified by file read this session — these override any
 component sentence that disagrees):
 
+> ⚠️ **이 블록은 2026-05 초기 세션 스냅샷이며 일부는 이후 해소됨.** 현재 코드 기준: `validate_harness.py`의 `execution_mode` 기본은 `"agent"`(workflow 아님; `workflow`는 은퇴 `WORKFLOW_RETIRED`), topology enum은 **7종**, schema-path 버그 수정 완료. 현 상태는 `skills/harness-creator/references/IMPLEMENTATION-STATUS.md` 우선.
+
 - `validate_harness.py:253` defaults `execution_mode` to `"workflow"`. The retired mode is the
   validator's de-facto canonical. (D5 correct; must flip.)
 - **CORRECTED (was wrong in an earlier draft):** `gate_or_block.py` + `budget_block.py` live in

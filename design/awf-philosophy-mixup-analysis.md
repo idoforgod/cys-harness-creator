@@ -4,7 +4,7 @@ This is the decisive evidence. The factory brain explicitly and repeatedly state
 
 # MIXUP 분석 — AWF ARCHITECTURE-AND-PHILOSOPHY가 harness-creator 공장두뇌(Factory Brain)에 얼마나 통합되어 설계 품질을 향상시키는가
 
-> **분석 단위 고정.** 공장두뇌 = `skills/harness-creator/SKILL.md` + `references/`(7개) + `CONSTITUTION.md`. 이것이 *새 하네스를 설계할 때* LLM이 따르는 지침이다. 게놈 = `inherit_genome.py`가 모든 자식에 전수하는 228파일 운영기계(`genome/.claude/hooks/scripts/*`, `soul.md`, `AGENTS.md` 등). **"통합되었다"는 게놈에 있다는 뜻이 아니라 공장두뇌가 그 철학으로 *설계한다*는 뜻이다.**
+> **분석 단위 고정.** 공장두뇌 = `skills/harness-creator/SKILL.md` + `references/`(7개) + `CONSTITUTION.md`. 이것이 *새 하네스를 설계할 때* LLM이 따르는 지침이다. 게놈 = `inherit_genome.py`가 모든 자식에 전수하는 운영기계(GENOME.json provenance 기준 현재 ~231파일; `genome/.claude/hooks/scripts/*`, `soul.md`, `AGENTS.md` 등 — 비프리미티브 prompt-runner/prompt는 제외). **"통합되었다"는 게놈에 있다는 뜻이 아니라 공장두뇌가 그 철학으로 *설계한다*는 뜻이다.**
 >
 > **실측 근거.** 공장두뇌 전문(全文) 키워드 스캔 + `validate_harness.py` 게이트 코드 + `inherit_genome.py` 전수목록 + `genome/.claude/settings.json` hook 배선을 직접 읽고 작성. 제공된 요약을 그대로 신뢰하지 않고 교차검증함.
 
@@ -25,7 +25,7 @@ This is the decisive evidence. The factory brain explicitly and repeatedly state
 | `soul.md`, `AGENTS.md`, `block_destructive`, `secret` | 각 1 | **전부 testing-and-measurement.md의 `GENOME_PRESENT` 전수파일 *리스트*** — 설계지침 아님 |
 | `게놈/상속` | 6~7 | **풍부**하나 "전수받는다 / 다시 만들지 않는다"는 경계선언 맥락 |
 
-공장두뇌가 명시적으로 그은 선 (skill-writing-guide.md §6, graph-and-orchestration.md §44):
+공장두뇌가 명시적으로 그은 선 (skill-and-agent-authoring.md §6, graph-and-orchestration.md §44):
 
 > "자식 하네스는 게놈을 통째로 물려받아 **이미** 컨텍스트 보존 hook·4계층 품질 게이트·보안 hook을 **갖고 태어난다.** 이 가이드의 저작 작업은 **앞단(front-half) 설계**에 집중한다. **상속된 뒷단(back-half) 기계는 다시 만들지 않는다.**"
 
@@ -138,7 +138,7 @@ This is the decisive evidence. The factory brain explicitly and repeatedly state
 1. **`references/qa-guide.md`에 "검증계층 설계 결정표" 추가** — 도메인별로 어떤 노드에 L1(의미검증)/L2(적대검토)를 *둘지* 선택규칙. 현재 reviewer 지정은 있으나 "언제 critic을 추가하고 언제 생략하나"의 *설계 판단*이 약함. → 4계층 철학을 GENOME-ONLY에서 설계변수로 끌어올림(설계 향상 ✓).
 2. **`SKILL.md` Phase 9에 pACS opt-in 설계 훅 추가** — IMPLEMENTATION-STATUS가 "연기"로 둔 pACS를 *언제 켤지*(고위험 판단 노드)의 설계기준 1단락. F/C/L+pre-mortem을 synthesis/judge 노드 프롬프트에 선택적으로 박는 패턴. → 자기보정을 설계가능하게(향상 ✓).
 3. **`references/architecture-patterns.md`에 "유전자 발현(domain expression)" 절** — AWF의 Research/Implementation/Data-pipeline 분화를 topology×mechanism 디폴트 프리셋으로 매핑("리서치 도메인 → dispatch+vote 기본값"). 상속메커니즘은 deep이나 *발현철학*이 shallow한 공백을 메움(향상 ✓).
-4. **`references/skill-writing-guide.md`에 WHY/WHAT/HOW/VERIFY 4분할 *원칙어* 명시** — 현재 구조는 따르나 자식 오케스트레이터 스킬 저작 시 이 분할을 지시하지 않음. 1단락 추가로 자식 스킬 품질 향상(향상 ✓).
+4. **`references/skill-and-agent-authoring.md`에 WHY/WHAT/HOW/VERIFY 4분할 *원칙어* 명시** — 현재 구조는 따르나 자식 오케스트레이터 스킬 저작 시 이 분할을 지시하지 않음. 1단락 추가로 자식 스킬 품질 향상(향상 ✓).
 
 **설계를 향상시키지 *않으므로* 추가 권하지 않는 것:** Autopilot/ULW(CYS는 warrant 승인철학으로 의도적 대체), Notation 6기호(graph.json 필드가 더 강함), RLM 이론·Hub-Spoke·Error Taxonomy·Predictive/Abductive(전부 back-half 운영기계 — 게놈이 책임지는 게 올바른 분업). 이들을 공장두뇌로 끌어올리면 "back-half를 다시 설계하지 않는다"는 핵심 SOT 원칙을 위반하고 두 번째 SOT를 만든다.
 

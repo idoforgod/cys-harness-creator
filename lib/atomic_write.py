@@ -30,7 +30,7 @@ def atomic_write(path, data, backup=False):
             pass
     fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp_", suffix=".swap")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:  # pin UTF-8: every reader uses encoding='utf-8' and emitted artifacts carry Korean prose (locale-independent)
             f.write(data)
             f.flush()
             os.fsync(f.fileno())

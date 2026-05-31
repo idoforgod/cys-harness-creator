@@ -1,3 +1,5 @@
+> ⚠️ **PRE-PIVOT 역사 스냅샷 (2026-05-29 era, 프리미티브 피벗 *이전*).** 이 문서의 디스크-상태 단언("git tracks 0 files", "factory-native 테스트 0", "perf HYPOTHESIS-grade")은 그 후 바뀌었다. **현재**: repo 커밋됨, 팩토리 자체 테스트 134개(`tests/test_factory.py`), n=5 stamped eval(`examples/deep-research/evals/*.verdict.json`), `workflow.js` 은퇴·프리미티브 기질이 제품, prompt-runner는 산출 하네스에서 제외. 현 상태는 `skills/harness-creator/references/IMPLEMENTATION-STATUS.md` 우선 — 아래는 역사 기록.
+
 All claims verified on disk. The 35 `test_*.py` are 100% inherited genome (prompt-runner + hooks transplanted into children) — zero are factory-native. git tracks 0 files. Perf artifacts self-confess HYPOTHESIS-grade. No SubagentStop/token logs exist. Now I'll deliver the re-recommendation.
 
 ---

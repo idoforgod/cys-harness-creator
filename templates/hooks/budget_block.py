@@ -52,9 +52,12 @@ def _margin():
     try:
         import json
         here = os.path.dirname(os.path.abspath(__file__))
-        # constants.json lives at the harness root or the factory root; try both
-        for c in (os.path.join(here, "..", "..", "..", "constants.json"),
-                  os.path.join(os.environ.get("CLAUDE_PROJECT_DIR", ""), "constants.json")):
+        proj = os.environ.get("CLAUDE_PROJECT_DIR", "")
+        # SPAWN_CEILING_MARGIN SoT: inherit_genome stamps it into <harness>/.harness/constants.json (safe in
+        # both install modes — never the host root); fall back to the harness/factory root constants.json.
+        for c in (os.path.join(proj, ".harness", "constants.json"),
+                  os.path.join(here, "..", "..", "..", "constants.json"),
+                  os.path.join(proj, "constants.json")):
             if os.path.isfile(c):
                 return json.load(open(c)).get("SPAWN_CEILING_MARGIN", 1)
     except Exception:

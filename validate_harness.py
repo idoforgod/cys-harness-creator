@@ -19,34 +19,62 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, "lib"))
 from toposort import toposort, CycleError  # noqa: E402
 
-# ---- tier policy MIRROR of model-tier-policy.js (keep in sync; M0 avoids cross-lang shelling) ----
+# ---- tier policy: loaded from role-class-policy.json, the SINGLE SoT shared with model-tier-policy.js ----
+# (replaces the former hand-copied mirror so the two can never drift; resume-safe fallback below.)
 VALID_TIERS = ["haiku", "sonnet", "opus"]
-TIER_BY_ROLE_CLASS = {
-    "gather": "haiku", "extract": "haiku", "format": "haiku", "qa-scan": "haiku",
-    "voter": "sonnet", "debater": "sonnet", "reviser": "sonnet",
-    "synthesis": "opus", "judge": "opus", "critic": "opus", "architecture": "opus",
+_RC_FALLBACK = {
+    "tier_by_role_class": {
+        "gather": "haiku", "extract": "haiku", "format": "haiku", "qa-scan": "haiku",
+        "voter": "sonnet", "debater": "sonnet", "reviser": "sonnet",
+        "synthesis": "opus", "judge": "opus", "critic": "opus", "architecture": "opus",
+    },
+    "pure_retrieval_role_classes": ["gather", "extract", "format", "qa-scan"],
+    "base_role_class_patterns": [
+        ["gather|fetch|search|retriev|collect|scan-src", "gather"],
+        ["extract|parse|pull", "extract"],
+        ["format|render|serialize|report|writer|publish", "format"],
+        ["qa|lint|check|verify|valid", "qa-scan"],
+        ["synth|aggregate|merge|conclude", "synthesis"],
+        ["judge|arbiter", "judge"], ["critic|review", "critic"],
+        ["architect|plan|design", "architecture"],
+    ],
+    "base_role_class_default": "synthesis",
+    "mechanism_role_class": {
+        "majority-vote": "voter", "debate-with-judge": "debater", "reflect-then-revise": "reviser",
+    },
 }
-PURE_RETRIEVAL = ["gather", "extract", "format", "qa-scan"]
+
+
+def _load_role_class_policy():
+    try:
+        with open(os.path.join(HERE, "role-class-policy.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return _RC_FALLBACK
+
+
+_RC = _load_role_class_policy()
+TIER_BY_ROLE_CLASS = _RC["tier_by_role_class"]
+PURE_RETRIEVAL = _RC["pure_retrieval_role_classes"]
+_BASE_PATTERNS = [(re.compile(rx), rc) for rx, rc in _RC["base_role_class_patterns"]]
+_MECHANISM_ROLE_CLASS = _RC["mechanism_role_class"]
+_BASE_DEFAULT = _RC["base_role_class_default"]
 
 
 def _base_role_class(id_, agent):
     s = (str(id_) + " " + str(agent)).lower()
-    for rx, rc in [(r"gather|fetch|search|retriev|collect|scan-src", "gather"),
-                   (r"extract|parse|pull", "extract"),
-                   (r"format|render|serialize|report|writer|publish", "format"),
-                   (r"qa|lint|check|verify|valid", "qa-scan"),
-                   (r"synth|aggregate|merge|conclude", "synthesis"),
-                   (r"judge|arbiter", "judge"), (r"critic|review", "critic"),
-                   (r"architect|plan|design", "architecture")]:
-        if re.search(rx, s):
+    for rx, rc in _BASE_PATTERNS:
+        if rx.search(s):
             return rc
-    return "synthesis"
+    return _BASE_DEFAULT
 
 
 def _role_class_of(node):
-    return {"majority-vote": "voter", "debate-with-judge": "debater",
-            "reflect-then-revise": "reviser"}.get(
-        node["decision_mechanism"], _base_role_class(node["id"], node["agent"]))
+    # .get() (not node["..."]) so a node missing decision_mechanism/id/agent never raises a raw KeyError —
+    # the validate gate flags malformed nodes via GRAPH_SCHEMA and must not crash (callers in both validate
+    # and emit pass schema-valid nodes; this only hardens the malformed-input path).
+    return _MECHANISM_ROLE_CLASS.get(
+        node.get("decision_mechanism"), _base_role_class(node.get("id", ""), node.get("agent", "")))
 
 
 def _load_const(key, default):
@@ -139,18 +167,31 @@ def validate(harness_dir):
             r.err("GRAPH_SCHEMA", "structural check failed (jsonschema not installed)", gpath)
 
     nodes = graph.get("nodes", [])
+    # A node that is not an object, or lacks id/agent, is FUNDAMENTALLY malformed — every downstream check
+    # (node_ids, EDGE_INTEGRITY, the per-node loop, QA_TOKEN_TRAP, GRAPH_SKILL_CONSISTENCY) raw-dereferences
+    # n["id"]/n["agent"]. Flag it via GRAPH_SCHEMA and RETURN here so the gate FAILS cleanly instead of
+    # crashing with a KeyError/TypeError traceback (the gate's stated contract). Nodes that merely miss an
+    # OPTIONAL field still flow through the collect-all checks below (they keep id+agent).
+    malformed_nodes = [n for n in nodes if not isinstance(n, dict) or not n.get("id") or not n.get("agent")]
+    if malformed_nodes:
+        for n in malformed_nodes:
+            r.err("GRAPH_SCHEMA", "malformed node (not an object / missing id/agent): %r" % (n,), gpath)
+        return r
     node_ids = {n["id"] for n in nodes}
 
-    # EDGE_INTEGRITY + cycle (pipeline must be acyclic)
+    # EDGE_INTEGRITY + cycle (pipeline must be acyclic). Derefs are .get()-guarded so a structurally
+    # malformed edge (missing from/to — already flagged by GRAPH_SCHEMA above) yields a clean EDGE_INTEGRITY
+    # message instead of a raw KeyError traceback (the gate's stated contract: FAIL malformed, never crash).
     for e in graph.get("edges", []):
-        if e["from"] not in node_ids or e["to"] not in node_ids:
-            r.err("EDGE_INTEGRITY", "edge references unknown node: %s->%s" % (e["from"], e["to"]))
+        if not isinstance(e, dict) or e.get("from") not in node_ids or e.get("to") not in node_ids:
+            r.err("EDGE_INTEGRITY", "edge references unknown/missing node: %s->%s"
+                  % (e.get("from") if isinstance(e, dict) else e, e.get("to") if isinstance(e, dict) else "?"))
     if graph.get("topology") in ("pipeline", "dispatch"):
         try:
             toposort(nodes, graph.get("edges", []))
         except CycleError as ce:
             r.err("GRAPH_CYCLE", str(ce))
-        except ValueError as ve:
+        except (ValueError, KeyError, TypeError) as ve:
             r.err("EDGE_INTEGRITY", str(ve))
 
     # PRODUCER_REVIEWER_REVIEW (audit P1-2): a producer-reviewer harness exists to REVIEW, so it must wire
@@ -170,7 +211,9 @@ def validate(harness_dir):
     if _topo == "fan-out-fan-in":
         _indeg = {}
         for _e in _edges:
-            _indeg[_e["to"]] = _indeg.get(_e["to"], 0) + 1
+            _to = _e.get("to") if isinstance(_e, dict) else None
+            if _to is not None:
+                _indeg[_to] = _indeg.get(_to, 0) + 1
         if len(nodes) < 3 or not any(v >= 2 for v in _indeg.values()):
             r.err("TOPOLOGY_STRUCTURE",
                   "topology='fan-out-fan-in' needs >=2 parallel producers converging to a sink (a node with "
@@ -182,7 +225,7 @@ def validate(harness_dir):
 
     # per-node: AGENT_EXISTS, AGENT_FRONTMATTER, tier V1/V2/V3, SCHEMA_FILE_EXISTS, ABSOLUTE_PATHS, conditional params
     lock_owners = {}
-    for n in nodes:
+    for n in nodes:                                 # every node here has id+agent (early-returned above otherwise)
         nid = n["id"]
         ap = os.path.join(harness_dir, ".claude", "agents", n["agent"] + ".md")
         fm = _parse_frontmatter(ap)
@@ -626,6 +669,13 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
                 r.err("MEMORY_RECALL_WIRED",
                       "orchestrator Phase 0 does not WIRE Tier-II recall as an execution step "
                       "(missing the _workspace/_recall.json relay — recall stays prose and never fires)", sk)
+            # RECALL_KEY_DETERMINISTIC (3-tier P0): the recall Grep token must be a BAKED literal
+            # (query_norm(harness_name)), never an LLM-derived "<...정규화 토큰>"/"<query 토큰>" placeholder —
+            # else read/write keys diverge and recall silently misses ('recall is wiring, not presence').
+            if re.search(r'Grep\s+"<[^"]*(?:정규화|query)[^"]*토큰[^"]*>"', txt):
+                r.err("RECALL_KEY_DETERMINISTIC",
+                      "orchestrator recall greps an LLM-derived token placeholder instead of the baked "
+                      "query_norm(harness_name) literal — re-run emit_orchestrator (read/write keys must match)", sk)
             # MEMORY_RELAY_WIRED (3-tier P2): verified facts must relay stage-to-stage THROUGH memory
             # (stage-N-facts.jsonl) so the fact spine flows through long-term memory, not only _workspace/.
             if "stage-<N>-facts" not in txt:

@@ -25,44 +25,61 @@ function loadConstants() {
 }
 const C = loadConstants();
 
+// role-class POLICY — single source of truth shared with validate_harness.py (role-class-policy.json).
+// This file no longer hand-copies the regex/dict tables; both consumers load the SAME JSON so they can
+// never drift. resume-safe fallback keeps the prior literals if the file is missing.
+function loadRoleClassPolicy() {
+  const fallback = {
+    tier_by_role_class: {
+      gather: "haiku", extract: "haiku", format: "haiku", "qa-scan": "haiku",
+      voter: "sonnet", debater: "sonnet", reviser: "sonnet",
+      synthesis: "opus", judge: "opus", critic: "opus", architecture: "opus",
+    },
+    pure_retrieval_role_classes: ["gather", "extract", "format", "qa-scan"],
+    base_role_class_patterns: [
+      ["gather|fetch|search|retriev|collect|scan-src", "gather"],
+      ["extract|parse|pull", "extract"],
+      ["format|render|serialize|report|writer|publish", "format"],
+      ["qa|lint|check|verify|valid", "qa-scan"],
+      ["synth|aggregate|merge|conclude", "synthesis"],
+      ["judge|arbiter", "judge"], ["critic|review", "critic"],
+      ["architect|plan|design", "architecture"],
+    ],
+    base_role_class_default: "synthesis",
+    mechanism_role_class: {
+      "majority-vote": "voter", "debate-with-judge": "debater", "reflect-then-revise": "reviser",
+    },
+  };
+  try {
+    return JSON.parse(fs.readFileSync(path.join(__dirname, "role-class-policy.json"), "utf8"));
+  } catch (e) {
+    return fallback; // resume-safe
+  }
+}
+const P = loadRoleClassPolicy();
+
 const VALID_TIERS = ["haiku", "sonnet", "opus"];
 
 // Tier per ROLE-CLASS. role-class is derived from a node (not a free string).
-const TIER_BY_ROLE_CLASS = {
-  // pure-retrieval / mechanical transforms -> haiku
-  gather: "haiku", extract: "haiku", format: "haiku", "qa-scan": "haiku",
-  // bounded reasoning within a fixed frame -> sonnet
-  voter: "sonnet", debater: "sonnet", reviser: "sonnet",
-  // open-ended synthesis / final judgment -> opus
-  synthesis: "opus", judge: "opus", critic: "opus", architecture: "opus",
-};
-const PURE_RETRIEVAL_ROLE_CLASSES = ["gather", "extract", "format", "qa-scan"];
+const TIER_BY_ROLE_CLASS = P.tier_by_role_class;
+const PURE_RETRIEVAL_ROLE_CLASSES = P.pure_retrieval_role_classes;
+const _BASE_PATTERNS = P.base_role_class_patterns.map(([rx, rc]) => [new RegExp(rx), rc]);
 
-// keyword-match node.id+agent to a role-class; unmapped -> "synthesis" (fail-safe-expensive:
+// keyword-match node.id+agent to a role-class; unmapped -> default (fail-safe-expensive:
 // never silently cheap-and-wrong; the validator then forces an explicit model:).
 function baseRoleClass(id, agent) {
   const s = (String(id) + " " + String(agent)).toLowerCase();
-  if (/gather|fetch|search|retriev|collect|scan-src/.test(s)) return "gather";
-  if (/extract|parse|pull/.test(s)) return "extract";
-  if (/format|render|serialize|report|writer|publish/.test(s)) return "format";
-  if (/qa|lint|check|verify|valid/.test(s)) return "qa-scan";
-  if (/synth|aggregate|merge|conclude/.test(s)) return "synthesis";
-  if (/judge|arbiter/.test(s)) return "judge";
-  if (/critic|review/.test(s)) return "critic";
-  if (/architect|plan|design/.test(s)) return "architecture";
-  return "synthesis";
+  for (const [rx, rc] of _BASE_PATTERNS) {
+    if (rx.test(s)) return rc;
+  }
+  return P.base_role_class_default;
 }
 
 // decision_mechanism overrides the base role for the spawned sub-roles.
 // (judge/critic come from mechanism_params and are tiered separately by the emitter.)
 function roleClassOf(node) {
-  switch (node.decision_mechanism) {
-    case "majority-vote": return "voter";
-    case "debate-with-judge": return "debater";
-    case "reflect-then-revise": return "reviser";
-    case "single":
-    default: return baseRoleClass(node.id, node.agent);
-  }
+  const m = P.mechanism_role_class[node.decision_mechanism];
+  return m !== undefined ? m : baseRoleClass(node.id, node.agent);
 }
 
 // FILL: applied at generation time to any node with empty/invalid model. explicit wins.

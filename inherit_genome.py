@@ -438,6 +438,15 @@ def inherit(harness_dir, verify_only=False, runtime_manifest=None, in_project=Fa
                 open(gk, "w").close()
         # 5.5 Tier-II cross-run domain memory store (M6 / RLM external environment)
         _init_memory_store(harness_dir)
+        # 5.6 stamp the hook-tunable constants into .harness/ so budget_block/spawn_counter resolve the
+        #     factory SoT (e.g. SPAWN_CEILING_MARGIN) INSIDE the produced harness — both install modes,
+        #     never the host root. Without this a non-default factory margin silently never propagated.
+        _src_const = os.path.join(_HERE, "constants.json")
+        if os.path.isfile(_src_const):
+            try:
+                shutil.copyfile(_src_const, os.path.join(harness_dir, ".harness", "constants.json"))
+            except OSError:
+                pass
         # 6. provenance + runtime routing manifest (resolves the two-runtime ambiguity)
         atomic_write(os.path.join(harness_dir, ".harness", "GENOME.json"), json.dumps({
             "source": "AgenticWorkflow (READ-ONLY upstream)",

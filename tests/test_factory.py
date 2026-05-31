@@ -559,7 +559,24 @@ class TestMeasurementDrift(unittest.TestCase):
 
 
 class TestTierPolicyMirror(unittest.TestCase):
-    """C16: validate_harness.TIER_BY_ROLE_CLASS hand-mirrors model-tier-policy.js. Catch drift."""
+    """C16: role-class policy is a SINGLE SoT (role-class-policy.json) loaded by BOTH
+    model-tier-policy.js and validate_harness.py. These tests prove (a) the Python loader matches the
+    SoT file exactly (no node needed — catches Python loader drift) and (b) the JS and Python
+    classifiers agree on a large corpus (catches loader-logic drift in either language)."""
+
+    def _policy(self):
+        with open(os.path.join(ROOT, "role-class-policy.json"), encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_python_loads_the_shared_sot(self):
+        p = self._policy()
+        self.assertEqual(validate_harness.TIER_BY_ROLE_CLASS, p["tier_by_role_class"])
+        self.assertEqual(validate_harness.PURE_RETRIEVAL, p["pure_retrieval_role_classes"])
+        self.assertEqual(validate_harness._MECHANISM_ROLE_CLASS, p["mechanism_role_class"])
+        self.assertEqual([rx.pattern for rx, _ in validate_harness._BASE_PATTERNS],
+                         [rx for rx, _ in p["base_role_class_patterns"]])
+        self.assertEqual([rc for _, rc in validate_harness._BASE_PATTERNS],
+                         [rc for _, rc in p["base_role_class_patterns"]])
 
     def test_py_and_js_tier_maps_match(self):
         import shutil
@@ -573,6 +590,136 @@ class TestTierPolicyMirror(unittest.TestCase):
         self.assertEqual(out.returncode, 0, "node failed: " + out.stderr)
         self.assertEqual(json.loads(out.stdout), validate_harness.TIER_BY_ROLE_CLASS,
                          "tier map drift between model-tier-policy.js and validate_harness.py — keep in sync")
+
+    def test_py_and_js_role_class_agree_on_corpus(self):
+        """The highest-churn surface is the regex list, NOT the tier dict — exercise role-class
+        classification through BOTH languages over a broad corpus so any regex/mechanism drift is caught."""
+        import itertools
+        import shutil
+        import subprocess
+        if not shutil.which("node"):
+            self.skipTest("node not installed")
+        ids = ["gather", "fetch_pages", "extract_x", "format_out", "qa_check", "verify_facts", "synth",
+               "aggregate", "judge_it", "critic_node", "architect_plan", "router", "writer", "publish_y",
+               "random_node", "review_step", "collect_src", "merge_all", "lint_pass", "design_doc"]
+        agents = ["data-gatherer", "parser", "report-writer", "linter", "fact-checker", "merger",
+                  "arbiter", "reviewer", "designer", "scanner", "x-worker"]
+        mechs = ["single", "majority-vote", "debate-with-judge", "reflect-then-revise"]
+        corpus = [{"id": i, "agent": a, "decision_mechanism": m}
+                  for i, a, m in itertools.product(ids, agents, mechs)]
+        py = [validate_harness._role_class_of(n) for n in corpus]
+        js_src = ("const P=require('%s');const c=JSON.parse(require('fs').readFileSync(0,'utf8'));"
+                  "process.stdout.write(JSON.stringify(c.map(n=>P.roleClassOf(n))))"
+                  % os.path.join(ROOT, "model-tier-policy.js"))
+        out = subprocess.run(["node", "-e", js_src], input=json.dumps(corpus),
+                             capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0, "node failed: " + out.stderr)
+        self.assertEqual(json.loads(out.stdout), py,
+                         "role-class classification drift between model-tier-policy.js and validate_harness.py")
+
+
+class TestMaxSpawnsBaked(unittest.TestCase):
+    """MF3 regression guard: the emitted orchestrator must BAKE the deterministic spawn ceiling as a
+    LITERAL integer (== sot_init.estimate_max_spawns(graph)) — never leave LLM hand-arithmetic or a
+    '<warrant fanout 합>' placeholder. Catches a silent revert of the determinism reduction."""
+
+    def _graph(self):
+        # mix single + majority-vote + review so estimate_max_spawns > node count (non-trivial literal).
+        return {"schema_version": "0.1", "harness_name": "spawn-probe", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [
+                    {"id": "gather", "agent": "researcher", "model": "haiku", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": [], "write_paths": ["_workspace/g/"],
+                     "output_schema": "", "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                    {"id": "vote", "agent": "voter", "model": "sonnet", "decision_mechanism": "majority-vote",
+                     "mechanism_params": {"n": 5, "quorum": 3}, "inputs": [], "outputs": [],
+                     "write_paths": ["_workspace/v/"], "output_schema": "", "retries": 0,
+                     "on_exhaust": "escalate", "max_rounds": 1},
+                    {"id": "synth", "agent": "synthesizer", "model": "opus", "decision_mechanism": "single",
+                     "mechanism_params": {}, "inputs": [], "outputs": [], "write_paths": ["_workspace/s/"],
+                     "output_schema": "", "review": {"agent": "reviewer"}, "retries": 0,
+                     "on_exhaust": "escalate", "max_rounds": 1}],
+                "edges": [{"from": "gather", "to": "vote"}, {"from": "vote", "to": "synth"}]}
+
+    def test_emitted_skill_bakes_deterministic_max_spawns(self):
+        import re
+        import sot_init
+        g = self._graph()
+        want = sot_init.estimate_max_spawns(g)
+        self.assertGreater(want, len(g["nodes"]), "fixture must make the literal non-trivial (> node count)")
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertNotIn("<warrant fanout", skill, "phantom hand-arithmetic placeholder must be gone")
+        found = {int(x) for x in re.findall(r"max_spawns:(\d+)", skill)}
+        found |= {int(x) for x in re.findall(r"계산한 \*\*(\d+)\*\*", skill)}
+        self.assertTrue(found, "emitted SKILL must contain a baked max_spawns integer")
+        self.assertEqual(found, {want},
+                         "baked max_spawns %s must equal estimate_max_spawns(graph)=%d" % (found, want))
+
+
+class TestRecallKeyBaked(unittest.TestCase):
+    """3-tier memory regression guard: emit must BAKE the deterministic recall key (query_norm(harness_name))
+    as a literal into the orchestrator Phase-0 prose for BOTH the read (Grep token) and write (query_norm
+    field) halves — never leave a '<...정규화 토큰>' placeholder for the LLM to re-derive (else read/write
+    keys can disagree and recall silently misses — 'recall is wiring, not presence')."""
+
+    def test_emitted_skill_bakes_matching_recall_key(self):
+        import query_norm as qn
+        g = {"schema_version": "0.1", "harness_name": "competitor-watch", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [{"id": "a", "agent": "scout", "model": "haiku", "decision_mechanism": "single",
+                        "mechanism_params": {}, "inputs": [], "outputs": [], "write_paths": ["_workspace/a/"],
+                        "output_schema": "", "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+             "edges": []}
+        key = qn.query_norm(g["harness_name"])
+        self.assertEqual(key, "competitor watch")
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        self.assertNotIn("정규화 토큰", skill, "no LLM-derived recall-token placeholder may remain")
+        self.assertIn('Grep "%s"' % key, skill, "read-side Grep token must be the baked recall key")
+        self.assertIn('"query_norm": "%s"' % key, skill, "write-side query_norm must be the SAME baked key")
+
+    def test_recall_key_deterministic_guard_regex(self):
+        # Locks the RECALL_KEY_DETERMINISTIC guard: its regex must FLAG a placeholder and PASS a baked literal.
+        rx = r'Grep\s+"<[^"]*(?:정규화|query)[^"]*토큰[^"]*>"'
+        import re as _re
+        self.assertTrue(_re.search(rx, 'Grep "<정규화 query 토큰>" .harness/memory/runs/index.jsonl'))
+        self.assertTrue(_re.search(rx, 'Grep "<query 정규화 토큰>" x'))
+        self.assertFalse(_re.search(rx, 'Grep "deep research" .harness/memory/runs/index.jsonl'))
+
+
+class TestAgentModePredecessorLabels(unittest.TestCase):
+    """Regression guard: agent-mode _spawn_recipe must label a node's input from its ACTUAL graph-edge
+    predecessor(s), not the linear toposort-prior node (wrong for fan-in/dispatch). Locks the round-3 fix."""
+
+    def _n(self, nid, agent, model="haiku"):
+        return {"id": nid, "agent": agent, "model": model, "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": [], "outputs": [], "write_paths": ["_workspace/%s/" % nid],
+                "output_schema": "", "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}
+
+    def test_fan_in_sink_names_all_producers(self):
+        g = {"schema_version": "0.1", "harness_name": "fan", "harness_version": "0.1.0",
+             "execution_mode": "agent", "topology": "fan-out-fan-in",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [self._n("pa", "prod-a"), self._n("pb", "prod-b"), self._n("pc", "prod-c"),
+                       self._n("sink", "merger", "opus")],
+             "edges": [{"from": "pa", "to": "sink"}, {"from": "pb", "to": "sink"}, {"from": "pc", "to": "sink"}]}
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        sink_line = [ln for ln in skill.splitlines() if ln.strip().startswith("- **sink**")][0]
+        for p in ("pa", "pb", "pc"):
+            self.assertIn("'%s' 노드 출력" % p, sink_line, "sink input must name producer %s (edge-predecessor)" % p)
+
+    def test_dispatch_worker_names_router_not_sibling(self):
+        g = {"schema_version": "0.1", "harness_name": "disp", "harness_version": "0.1.0",
+             "execution_mode": "agent", "topology": "dispatch",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [self._n("route", "router"), self._n("wa", "worker-a", "sonnet"),
+                       self._n("wb", "worker-b", "sonnet")],
+             "edges": [{"from": "route", "to": "wa"}, {"from": "route", "to": "wb"}]}
+        skill = emit_orchestrator._orchestrator_skill(g, toposort(g["nodes"], g["edges"]))
+        wb_line = [ln for ln in skill.splitlines() if ln.strip().startswith("- **wb**")][0]
+        self.assertIn("'route' 노드 출력", wb_line, "worker wb must name the router as predecessor")
+        self.assertNotIn("'wa' 노드 출력", wb_line, "worker wb must NOT name its sibling wa (linear-prev bug)")
 
 
 class TestWarrantTeamCost(unittest.TestCase):
@@ -1160,6 +1307,42 @@ class TestValidateRobustness(unittest.TestCase):
                 errs = [i for i in rep.items if i["level"] == "error"]
                 self.assertTrue(any(e["code"] == "GRAPH_SCHEMA" or e["code"] == "GRAPH_MISSING" for e in errs),
                                 "malformed graph.json %r must produce a clean GRAPH_SCHEMA error" % raw)
+
+    def _g(self, nodes, edges=None):
+        return {"schema_version": "0.1", "harness_name": "rob", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": nodes, "edges": edges or []}
+
+    def test_malformed_NODE_does_not_crash_validate(self):
+        # MF1 regression guard: a non-dict node, or a node missing id/agent, or an edge missing from/to,
+        # must FAIL the gate cleanly (>=1 error, no raised exception) — never a raw KeyError/TypeError.
+        ok = {"id": "a", "agent": "aa", "model": "haiku", "decision_mechanism": "single",
+              "mechanism_params": {}, "inputs": [], "outputs": [], "write_paths": ["_workspace/a/"],
+              "output_schema": "", "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}
+        cases = [
+            ("missing-id", [{k: v for k, v in ok.items() if k != "id"}]),
+            ("missing-agent", [{k: v for k, v in ok.items() if k != "agent"}]),
+            ("bare-string-node", ["junk"]),
+            ("missing-mechanism", [{k: v for k, v in ok.items() if k != "decision_mechanism"}]),
+            ("edge-missing-to", [ok, dict(ok, id="b", agent="bb", write_paths=["_workspace/b/"])]),
+        ]
+        for label, nodes in cases:
+            edges = [{"from": "a"}] if label == "edge-missing-to" else []
+            with tempfile.TemporaryDirectory() as td:
+                os.makedirs(os.path.join(td, ".harness"))
+                json.dump(self._g(nodes, edges), open(os.path.join(td, ".harness", "graph.json"), "w"))
+                try:
+                    rep = validate_harness.validate(td)   # must NOT raise
+                except Exception as e:  # noqa: BLE001
+                    self.fail("validate crashed on %s: %r" % (label, e))
+                self.assertTrue([i for i in rep.items if i["level"] == "error"],
+                                "%s must yield >=1 error, not a silent pass" % label)
+
+    def test_role_class_of_tolerates_missing_keys(self):
+        # _role_class_of must .get() (not raw-deref) so a malformed node never raises (callers pass valid nodes).
+        self.assertEqual(validate_harness._role_class_of({}), "synthesis")  # default, no crash
+        self.assertEqual(validate_harness._role_class_of({"decision_mechanism": "majority-vote"}), "voter")
 
 
 class TestPromptRunnerAbsent(unittest.TestCase):

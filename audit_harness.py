@@ -46,9 +46,12 @@ def compute_drift(graph, agents_on_disk, skills_on_disk):
     """Set-diffs between the graph contract and what is on disk. Returns a sorted list of drift items."""
     g = graph or {}
     nodes = g.get("nodes") or []
-    agents_in_graph = {n["agent"] for n in nodes}
+    # R1 runs at RESEARCH on possibly hand-edited / mid-authoring graphs (BEFORE validate I5), so a node
+    # missing agent/id must be SKIPPED (and reported as drift), not crash compute_drift with a raw KeyError.
+    agents_in_graph = {n["agent"] for n in nodes if n.get("agent")}
     skills_in_graph = {"%s-%s" % (g.get("harness_name", ""), n["id"])
-                       for n in nodes if (n.get("skill_authoring") or {}).get("mode") == "skill"}
+                       for n in nodes if n.get("id") and (n.get("skill_authoring") or {}).get("mode") == "skill"}
+    malformed = [n for n in nodes if not n.get("agent") or not n.get("id")]
     drift = []
     for a in sorted(agents_on_disk - agents_in_graph):
         drift.append({"kind": "agent", "name": a, "issue": "on-disk-not-in-graph (orphan)"})
@@ -58,6 +61,9 @@ def compute_drift(graph, agents_on_disk, skills_on_disk):
         drift.append({"kind": "skill", "name": s, "issue": "on-disk-not-in-graph (orphan)"})
     for s in sorted(skills_in_graph - skills_on_disk):
         drift.append({"kind": "skill", "name": s, "issue": "in-graph-not-on-disk (missing)"})
+    for n in malformed:
+        drift.append({"kind": "graph", "name": str(n.get("id") or n.get("agent") or "?"),
+                      "issue": "node missing required id/agent (malformed contract)"})
     return drift
 
 

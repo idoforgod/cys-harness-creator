@@ -1,3 +1,5 @@
+> ⚠️ **PRE-PIVOT 역사 스냅샷 (2026-05 프리미티브 피벗 *이전*).** 이 문서의 런타임·수치 서술(`workflow.js`를 제품 런타임으로·`emit_workflow.py`로 컴파일·게놈 228파일·`validate_harness.py` 17개 검사 등)은 피벗 *이전* 기록이다. **현재 제품**: 산출 하네스 런타임 = `emit_orchestrator.py`가 emit하는 **오케스트레이터 skill**(프리미티브 기질; `workflow.js`는 은퇴·`emit_workflow.py`는 공장내부 측정 전용), 게놈 **231파일**, `validate_harness.py` **49 머신체크 코드**, **7 토폴로지**. 현 상태는 `skills/harness-creator/references/IMPLEMENTATION-STATUS.md` 우선 — 아래 본문은 역사 비교 기록으로만 읽을 것.
+
 I now have full grounding on both sides. The original's own dogfooding audit confirms: "No CI/CD, no test suite, no runtime" — it is a documentation/scaffolding meta-skill. The CYS side has executable Python compilers, JS workflow emitters, gates, measurement scripts, and a vendored genome. I have everything needed for the comparison.
 
 ---

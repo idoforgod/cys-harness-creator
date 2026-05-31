@@ -18,7 +18,9 @@ import sys
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
+sys.path.insert(0, os.path.join(ROOT, "lib"))
 import inherit_genome  # noqa: E402
+from query_norm import query_norm  # noqa: E402  (shared recall-key normalizer; emit bakes the same fn's output)
 
 
 def _build_record(graph, name, source=None, ts="seed-import"):
@@ -26,7 +28,7 @@ def _build_record(graph, name, source=None, ts="seed-import"):
     nodes = graph.get("nodes") or []
     return {
         "build_id": graph.get("harness_name") or name,
-        "query_norm": (graph.get("harness_name") or name).replace("-", " "),
+        "query_norm": query_norm(graph.get("harness_name") or name),
         "topology": graph.get("topology"),
         "execution_mode": graph.get("execution_mode"),
         "n_nodes": len(nodes),

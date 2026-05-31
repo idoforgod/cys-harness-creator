@@ -99,6 +99,11 @@ def main():
     if not ft:
         print("specify --type <feedback_type> (one of %s) or --proactive" % sorted(_ROUTE), file=sys.stderr)
         sys.exit(2)
+    if route_feedback(ft) is None:
+        # B3: an unknown feedback_type used to crash record() with a raw ValueError traceback. The emitted
+        # orchestrator tells the LLM to run `evolve_harness.py . --type <유형>`, so a typo must fail cleanly.
+        print("unknown --type %r; expected one of %s" % (ft, sorted(_ROUTE)), file=sys.stderr)
+        sys.exit(2)
     e = record(hd, opt("--date") or "unknown-date", ft, opt("--change") or "", opt("--reason") or "")
     print("recorded: %s -> %s (%s)" % (e["feedback_type"], e["target"], e["change"]))
 

@@ -39,7 +39,7 @@
 | 원본 (team-vs-subagent + 산문 직접) | CYS (graph.json 계약, 프리미티브 기질) |
 |---|---|
 | 오케스트레이터 = 사람이 쓰는 산문 스킬 | 오케스트레이터 = graph.json이 **emit한** SKILL.md(검증·재현 가능) |
-| 팀 모드가 기본 (2명 이상 협업 시 최우선) | `agent` 모드 기본(순차/병렬 sub-spawn); `team`은 실시간 inter-agent comms 필수 시; `hybrid`는 단계별 혼합 |
+| 팀 모드가 기본 (2명 이상 협업 시 최우선) | 빌드 하네스는 **`team`(기본) 또는 `hybrid`** — A2 floor(`ALL_PRIMITIVES_PRESENT`)상 순수 `agent`는 `TeamCreate`를 emit하지 않아 validate 실패; `agent`는 개념상 sub-spawn 기질일 뿐 빌드 모드 아님. `hybrid`는 현재 team 레시피를 emit(P0-2; Phase별 혼합 emit만 future work) |
 | `TeamCreate`/`TaskCreate`/`depends_on`/`SendMessage` (산문 직접) | `graph.nodes[]` + `edges[]`(ordering) → emit이 `Agent()`/`TeamCreate`/`TaskCreate(depends_on)`/`SendMessage`/`TeamDelete` 호출 산문을 생성 |
 | 6개 패턴을 하나의 축에 혼재 | 7 topology(데이터흐름) × 4 mechanism(합의이론) — **직교 두 축** |
 | "모든 에이전트 opus" | role→tier 정책(gather=haiku, voter=sonnet, judge=opus) — agent frontmatter가 **런타임 강제** |
@@ -61,7 +61,7 @@
   "schema_version": "0.1",                       // const "0.1" 고정
   "harness_name": "domain-name",                 // ^[a-z][a-z0-9-]{1,48}[a-z0-9]$ (소문자-하이픈)
   "harness_version": "0.1.0",                    // ^[0-9]+\.[0-9]+\.[0-9]+$ (semver). 첫 생성 0.1.0
-  "execution_mode": "agent",                     // agent(기본) | team | hybrid | workflow(은퇴, 미사용)
+  "execution_mode": "team",                      // team(빌드 기본) | hybrid | agent(개념 기질, A2 floor상 빌드엔 부적합) | workflow(은퇴, 미사용)
   "topology": "pipeline",                        // pipeline|dispatch|fan-out-fan-in|producer-reviewer|supervisor|expert-pool|hierarchical
   "budget": {
     "total_tokens": 600000,                      // 하드 ceiling. warrant.py 추정(+여유). approval_required=true면 null 불가
@@ -99,9 +99,9 @@
 **저작 시 절대 원칙:**
 
 - **`edges`는 순서(ordering)일 뿐 의존성 그래프가 아니다.** 원본의 `TaskCreate(depends_on=[...])`와 혼동하지 말 것. edges는 토폴로지 스케줄링을 위한 위상정렬(toposort) 입력이다. 데이터 의존은 `inputs`/`outputs` 경로로 표현한다. (단 `team` 모드 emit에서는 edges가 `TaskCreate(depends_on=[...])`로도 번역된다 — §11.)
-- **spine 필드명은 절대 바꾸지 않는다.** `emit_orchestrator.py`·`harness.lock`·`validate_harness.py`·사전 cost band가 모두 이 파일에서 파생된다.
+- **spine 필드명은 절대 바꾸지 않는다.** `emit_orchestrator.py`·`validate_harness.py`·사전 cost band(`warrant.py`)가 모두 이 파일에서 파생된다(emit가 stamp하는 무결성 파일은 `graph.lock` — sha256 provenance).
 - **모든 경로는 상대.** 절대경로는 `ABSOLUTE_PATHS` 에러. `_workspace/` 기준.
-- **`write_paths`는 노드 간 겹치면 안 된다** — `WRITE_PATH_OVERLAP` 에러. `harness.lock`이 이 소유권 맵을 정적으로 검증한다.
+- **`write_paths`는 노드 간 겹치면 안 된다** — `WRITE_PATH_OVERLAP` 에러. `validate_harness.py`가 graph.json에서 write_path→node 소유권 맵을 **메모리에서 직접 도출·검증**한다(별도 lock 파일 불필요).
 
 ---
 
@@ -221,9 +221,9 @@ python3 "$TOOLS_ROOT"/emit_orchestrator.py <harness_dir> [--in-project]
 
 **mode별 Phase-2 spawn 레시피:**
 
-- **agent**(기본, `_spawn_recipe`) — toposort 순서로 `Agent(subagent_type="<agent>", model="<model>")`를 spawn(병렬 fan-out은 `run_in_background`), 각 노드 후 게이트. mechanism별로 줄이 확장된다: majority-vote=병렬 N spawn + quorum 집계, debate-with-judge=N debater × rounds + judge, reflect-then-revise=critic→reviser 루프(approved 시 종료). `review` 단 노드는 L2 리뷰 줄 추가.
+- **agent**(개념 기질 — 빌드 모드 아님, `_spawn_recipe`) — toposort 순서로 `Agent(subagent_type="<agent>", model="<model>")`를 spawn(병렬 fan-out은 `run_in_background`), 각 노드 후 게이트. mechanism별로 줄이 확장된다: majority-vote=병렬 N spawn + quorum 집계, debate-with-judge=N debater × rounds + judge, reflect-then-revise=critic→reviser 루프(approved 시 종료). `review` 단 노드는 L2 리뷰 줄 추가.
 - **team**(`_team_recipe`) — 오케스트레이터(=Team Lead)가 `TeamCreate`/`TaskCreate(depends_on=edges)`/`SendMessage`/`TeamDelete` 실제 호출(§11).
-- **hybrid** — 단계별로 agent/team 혼합.
+- **hybrid** — 현재 `team`과 동일하게 `_team_recipe`를 emit(P0-2: `emit_orchestrator.py`의 `if mode in ("team","hybrid")` 분기). Phase별 agent/team 기질 *혼합* emit만 future work.
 
 **spawn 카운팅·게이트 인터록:** spawn마다 `spawns_used += 1`(단일쓰기). PostToolUse `spawn_counter` hook이 자동 증분하고 `budget_block`이 천장을 강제한다. `gate_or_block.py`가 advisory validator(exit 0)를 **exit-2 인터록**으로 승격하므로, 게이트 FAIL이 단계를 실제로 멈춘다.
 
@@ -245,7 +245,7 @@ _workspace/02_<node>/<artifact>.json   ← 노드 2 산출
 ```
 
 - 노드 N의 `inputs`는 보통 노드 N-1의 `outputs`다 (예: fetch.inputs=`01_gather/findings.json` = gather.outputs).
-- `write_paths`는 디렉토리 단위 소유권 — 두 노드가 같은 경로를 가지면 `WRITE_PATH_OVERLAP` 에러. `harness.lock`이 write_paths→node 맵을 정적으로 검증한다.
+- `write_paths`는 디렉토리 단위 소유권 — 두 노드가 같은 경로를 가지면 `WRITE_PATH_OVERLAP` 에러. `validate_harness.py`가 write_paths→node 맵을 graph.json에서 메모리로 도출해 검증한다(lock 파일 없음).
 - `_workspace/`는 **삭제하지 않고 보존** — 사후 검증·감사 추적·부분 재실행 입력.
 
 **채널 2 — SendMessage (team 모드 한정, 실시간 peer-to-peer):** `execution_mode='team'`에서 팀원이 상충·누락 발견 시 `SendMessage`로 관련 팀원에게 직접 공유(리더 우회). 이것이 team 모드를 정당화하는 유일한 능력이다(§11). agent/hybrid의 순차·병렬 패스는 이 채널을 쓰지 않는다.
@@ -342,7 +342,7 @@ deep-research 예: gather/fetch=`proceed-with-gap`(웹 결손 허용), verify=`p
 
 `execution_mode`는 셋 다 프리미티브 기질에서 돈다 — 차이는 오케스트레이터가 노드를 어떻게 spawn하느냐다.
 
-**agent (기본):** 오케스트레이터가 toposort 순서로 `Agent(subagent_type=...)`를 순차/병렬 spawn하고 `_workspace/` 파일로 핸드오프한다. 실시간 inter-agent 통신이 없다.
+**agent (개념 기질 — 빌드 모드 아님):** 오케스트레이터가 toposort 순서로 `Agent(subagent_type=...)`를 순차/병렬 spawn하고 `_workspace/` 파일로 핸드오프한다. 실시간 inter-agent 통신이 없다. **단, 순수 `agent`는 `TeamCreate`를 emit하지 않아 A2 `ALL_PRIMITIVES_PRESENT`를 validate에서 실패하므로, 빌드되는 하네스는 `team`/`hybrid`로 emit한다**(team 미사용 환경에선 그 안에서 sub-agent로 graceful-degrade).
 
 **team — 실제 팀 프리미티브 emit (`_team_recipe`, `TEAM_EMIT_PRESENT`):** 오케스트레이터(=Team Lead)가 다음을 실제 호출한다(agent 모드의 `Agent()` fan과 더 이상 byte-동일 아님):
 
@@ -354,11 +354,11 @@ deep-research 예: gather/fetch=`proceed-with-gap`(웹 결손 허용), verify=`p
 
 > **Graceful degrade (A2-iii, `TEAM_GRACEFUL_DEGRADE`):** `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` 플래그가 없으면 각 task를 `Agent(subagent_type=...)` fan + `_workspace/` 핸드오프로 강등한다 — 팀 없이도 동일 그래프가 실행된다.
 
-**team을 쓰는 유일한 정당화:** 에이전트 간 **실시간 inter-agent 통신이 본질적으로 필요**할 때 — 즉 에이전트들이 서로의 중간 상태를 실시간 협상해야 하고 파일/순차 패싱으로 표현 불가능할 때. 그 외에는 agent가 기본이다. team은 결정론적으로 스케줄될 수 없으므로(플랫폼 한계), 그 비결정성을 감수할 가치가 명백할 때만 선택한다.
+**team을 쓰는 유일한 정당화:** 에이전트 간 **실시간 inter-agent 통신이 본질적으로 필요**할 때 — 즉 에이전트들이 서로의 중간 상태를 실시간 협상해야 하고 파일/순차 패싱으로 표현 불가능할 때. 그 외엔 개념상 agent로 충분하지만 **빌드되는 하네스는 A2 floor상 team/hybrid로 emit**한다(순수 agent는 `TeamCreate` 미emit → `ALL_PRIMITIVES_PRESENT` 실패; 팀 미사용 시 그 안에서 sub-agent로 graceful-degrade). team은 결정론적으로 스케줄될 수 없으므로(플랫폼 한계), 실시간 협상 가치가 명백할 때만 *실제* 팀 통신을 쓴다.
 
 > debate-with-judge mechanism이 "에이전트 간 의견 충돌·반박"의 90%를 **결정론적으로** 커버한다(transcript를 파일로 누적, judge가 수렴). 실시간 협상이 정말 필요한지 묻기 전에, debate-with-judge로 충분하지 않은지 먼저 확인하라.
 
-**hybrid:** 단계별로 agent와 team을 혼합한다(예: 수집 단계는 agent fan, 협상 단계만 team). cost_band은 team과 같은 `TEAM_COORD_TOKENS` 보정을 받는다.
+**hybrid:** 현재는 `team`과 동일하게 `_team_recipe`를 emit한다(P0-2 — `emit_orchestrator.py`의 `if mode in ("team","hybrid")` 분기). 단계별 agent/team 기질 *혼합* emit(예: 수집=agent fan, 협상만=team)은 future work다. cost_band은 team과 같은 `TEAM_COORD_TOKENS` 보정을 받는다.
 
 ---
 

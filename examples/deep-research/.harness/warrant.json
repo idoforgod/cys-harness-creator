@@ -1,0 +1,56 @@
+{
+  "predicates": {
+    "distinct_expertise_domains": 4,
+    "has_dependent_or_parallel_stages": true,
+    "will_be_rerun": true,
+    "output_objective": true,
+    "noisy": true
+  },
+  "verdict": {
+    "verdict": "build-harness",
+    "topology": "pipeline",
+    "decision_mechanism": "reflect-then-revise",
+    "n_agents": 4,
+    "warnings": [],
+    "rationale": "4 domain(s) and/or ordered stages -> pipeline / reflect-then-revise."
+  },
+  "cost": {
+    "total_tokens": 88000,
+    "weighted_units": 216000,
+    "band": "LOW",
+    "usd_estimate": 0.432,
+    "execution_mode": "team",
+    "team_coordination_tokens": 16000,
+    "breakdown": [
+      {
+        "id": "gather",
+        "model": "haiku",
+        "fanout": 1,
+        "est_tokens": 16000,
+        "weighted_units": 16000
+      },
+      {
+        "id": "fetch",
+        "model": "haiku",
+        "fanout": 1,
+        "est_tokens": 16000,
+        "weighted_units": 16000
+      },
+      {
+        "id": "verify",
+        "model": "sonnet",
+        "fanout": 4,
+        "est_tokens": 32000,
+        "weighted_units": 96000
+      },
+      {
+        "id": "synthesize",
+        "model": "opus",
+        "fanout": 1,
+        "est_tokens": 8000,
+        "weighted_units": 40000
+      }
+    ]
+  },
+  "note": "warrant PROPOSES budget.total_tokens; graph.json is single-writer (may double the floor for retry/variance headroom). approval_required=true => show band, BLOCK on explicit 'approve' before first agent() spawns."
+}

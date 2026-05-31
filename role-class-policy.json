@@ -1,0 +1,33 @@
+{
+  "note": "SINGLE SOURCE OF TRUTH for role-class classification + tier mapping. Loaded by BOTH model-tier-policy.js and validate_harness.py so the two can never drift (replaces the former hand-copied Python mirror). Regex patterns use ONLY features common to JS RegExp and Python re — literal alternation, case-insensitive match on (id + ' ' + agent).lower(). Order of base_role_class_patterns is significant: FIRST match wins.",
+  "tier_by_role_class": {
+    "gather": "haiku",
+    "extract": "haiku",
+    "format": "haiku",
+    "qa-scan": "haiku",
+    "voter": "sonnet",
+    "debater": "sonnet",
+    "reviser": "sonnet",
+    "synthesis": "opus",
+    "judge": "opus",
+    "critic": "opus",
+    "architecture": "opus"
+  },
+  "pure_retrieval_role_classes": ["gather", "extract", "format", "qa-scan"],
+  "base_role_class_patterns": [
+    ["gather|fetch|search|retriev|collect|scan-src", "gather"],
+    ["extract|parse|pull", "extract"],
+    ["format|render|serialize|report|writer|publish", "format"],
+    ["qa|lint|check|verify|valid", "qa-scan"],
+    ["synth|aggregate|merge|conclude", "synthesis"],
+    ["judge|arbiter", "judge"],
+    ["critic|review", "critic"],
+    ["architect|plan|design", "architecture"]
+  ],
+  "base_role_class_default": "synthesis",
+  "mechanism_role_class": {
+    "majority-vote": "voter",
+    "debate-with-judge": "debater",
+    "reflect-then-revise": "reviser"
+  }
+}

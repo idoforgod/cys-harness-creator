@@ -22,7 +22,9 @@ def main():
         "stop_reason": payload.get("stop_reason") or payload.get("reason"),
         "usage": payload.get("usage"),  # often absent; recorded if present
     }
-    root = os.environ.get("HARNESS_ROOT") or os.getcwd()
+    # CLAUDE_PROJECT_DIR is the var the settings.json wrapper + inherit_genome actually set (and the
+    # other 8 M0 hooks use); it pins the log to the harness root regardless of the hook's cwd.
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or os.environ.get("HARNESS_ROOT") or os.getcwd()
     logp = os.path.join(root, ".harness", "runs", "log.jsonl")
     try:
         os.makedirs(os.path.dirname(logp), exist_ok=True)
