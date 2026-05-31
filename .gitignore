@@ -42,3 +42,7 @@ genome/prompt-runner/execution.log
 _workspace/dogfood/
 _workspace/h2h/
 _workspace/probe/
+
+# --- regenerable lift probe (lift_gate.py emit-probe); never commit ---
+examples/_probes/
+*.lift_probe.workflow.js
