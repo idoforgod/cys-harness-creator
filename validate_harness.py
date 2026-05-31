@@ -327,6 +327,22 @@ def validate(harness_dir):
                 r.err("MEMORY_STORE_INIT",
                       ".harness/memory/%s missing (run inherit_genome / _init_memory_store)" % rel, mem)
 
+    # BUILD_GATES_SKIPPED (P1-4/audit): the 4-stage factory workflow (warrant PRE -> R1 audit -> P5 approval
+    # -> emit) is honor-system by default — emit/validate succeed even if every build-time gate was skipped.
+    # This OPT-IN policy (constants.BUILD_GATES: off|warn|error, default 'off') lets a project REQUIRE the gate
+    # ARTIFACTS so a build cannot silently bypass them: warrant.json (warrant --graph writes it), audit.json
+    # (audit_harness writes it), APPROVED (the P5 human-approval token the orchestrator stamps on 'approve').
+    # Default 'off' keeps direct/example emits at 0/0; flip to warn/error to enforce the pipeline.
+    _bg = _load_const("BUILD_GATES", "off")
+    if _bg in ("warn", "error"):
+        for _art, _label in ((os.path.join(".harness", "warrant.json"), "warrant PRE cost gate"),
+                             (os.path.join(".harness", "audit.json"), "R1 state audit"),
+                             (os.path.join(".harness", "APPROVED"), "P5 human-approval token")):
+            if not os.path.isfile(os.path.join(harness_dir, _art)):
+                r.add("BUILD_GATES_SKIPPED", _bg,
+                      "build-time gate not recorded: %s (%s) — the 4-stage workflow step did not run "
+                      "(BUILD_GATES=%s)" % (_art, _label, _bg), _art)
+
     return r
 
 

@@ -14,8 +14,10 @@ run. So this runner is EVIDENCE-GATED and split:
   - **L0 anti-skip is done IN-HOOK** — it checks ONLY that the recorded deliverable file exists and is
     >= MIN bytes (it does NOT shell out to validate_pacs --check-l0, which also demands the pACS log and
     would false-block a deliverable-present/log-absent step);
-  - **L1 / L1.5 / L2 are FIRE-ON-PRESENCE** — each validator runs (via gate_or_block) only if its log
-    file exists, so quality is enforced when the log was produced and never false-blocked when it wasn't.
+  - **L1 verification is MANDATORY (P1-3)** — a step that passed L0 but has NO verification log fails-closed
+    (exit 2): L1 must actually run, so 'L0 + L1 + budget' are the mandatory layers.
+  - **L1.5 / L2 are FIRE-ON-PRESENCE** — each validator runs (via gate_or_block) only if its log file exists,
+    so they are enforced when the orchestrator produced the log and never false-block when it didn't.
 Advisory-safe everywhere: missing SOT / gate_or_block / validators / output path => exit 0.
 
 Exit: 0 allow, 2 BLOCK (first failing layer). Selftest: qa_gate_runner.py --selftest
@@ -102,6 +104,15 @@ def run():
     block, reason = l0_block(step, outputs, proj)
     if block:
         sys.stderr.write("QA GATE L0 BLOCK at step %d: %s\n" % (step, reason))
+        return 2
+    # P1-3 (audit): L1 verification is MANDATORY, not fire-on-presence — a step that passed L0 but produced
+    # NO verification log means L1 never ran, so the '4-layer QA' claim would be a lie. FAIL-CLOSED (exit 2):
+    # the orchestrator must write verification-logs/step-N-verify.md before the next step. (Mandatory layers:
+    # L0 anti-skip + L1 verification + the spawn-ceiling budget; L1.5 pACS / L2 review stay fire-on-presence.)
+    vlog = os.path.join(proj, "verification-logs", "step-%d-verify.md" % step)
+    if not os.path.isfile(vlog):
+        sys.stderr.write("QA GATE L1 BLOCK at step %d: no verification log (verification-logs/step-%d-verify.md) "
+                         "— L1 verification did not run; write the verification log before proceeding\n" % (step, step))
         return 2
     # L1/L1.5/L2 via gate_or_block, fire-on-presence
     if os.path.isfile(gate):

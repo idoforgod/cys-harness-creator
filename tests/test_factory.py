@@ -856,6 +856,60 @@ class TestH2HAggregate(unittest.TestCase):
                                     model_id=None, git_sha=None, harness_version=None)
 
 
+class TestFactoryPipelineE2E(unittest.TestCase):
+    """P1-4 (audit): the 4-stage build pipeline was never exercised together (warrant PRE output was consumed
+    by nothing). Chain it end-to-end: predicates -> warrant.classify(build-harness) -> author graph (PLANNING)
+    -> audit_harness.audit (R1) -> emit_orchestrator (IMPL) -> validate()==0. Plus the opt-in BUILD_GATES policy."""
+
+    def _harness(self, td):
+        g = {"schema_version": "0.1", "harness_name": "e2e", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [
+                 {"id": "gather", "agent": "e2e-g", "model": "haiku", "decision_mechanism": "single",
+                  "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/g.json"],
+                  "write_paths": ["_workspace/g/"], "output_schema": "schemas/g.json",
+                  "retries": 1, "on_exhaust": "proceed-with-gap", "max_rounds": 1},
+                 {"id": "synth", "agent": "e2e-s", "model": "opus", "decision_mechanism": "single",
+                  "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/s.json"],
+                  "write_paths": ["_workspace/s/"], "output_schema": "schemas/s.json",
+                  "review": {"agent": "reviewer"}, "retries": 0, "on_exhaust": "escalate", "max_rounds": 1}],
+             "edges": [{"from": "gather", "to": "synth"}]}
+        os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        for s in ("g", "s"):
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", s + ".json"), "w"))
+        return g
+
+    def test_predicates_through_validated_harness(self):
+        import warrant, audit_harness
+        # STAGE PRE: warrant classifies a multi-domain, staged, rerun task as build-harness
+        v = warrant.classify({"distinct_expertise_domains": 3, "has_dependent_or_parallel_stages": True,
+                              "will_be_rerun": True, "output_objective": True, "noisy": True})
+        self.assertEqual(v["verdict"], "build-harness", "a multi-domain staged task must warrant a harness")
+        with tempfile.TemporaryDirectory() as td:
+            g = self._harness(td)                                   # STAGE PLANNING: author the contract
+            au = audit_harness.audit(td)                            # STAGE RESEARCH R1: state audit
+            self.assertIn(au["branch"], ("new", "extend", "maintain"))
+            self.assertTrue(os.path.isfile(os.path.join(td, ".harness", "audit.json")), "R1 wrote audit.json")
+            self.assertEqual(emit_orchestrator.emit_orchestrator(g, td), [], "STAGE IMPL: emit + genome verify")
+            errs = [i for i in validate_harness.validate(td).items if i["level"] == "error"]
+            self.assertEqual(errs, [], "the full warrant->audit->emit pipeline must validate 0 errors: %s" % errs)
+
+    def test_build_gates_policy_off_by_default_and_enforceable(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as td:
+            g = self._harness(td)
+            emit_orchestrator.emit_orchestrator(g, td)             # no warrant.json/audit.json/APPROVED present
+            self.assertNotIn("BUILD_GATES_SKIPPED", {i["code"] for i in validate_harness.validate(td).items},
+                             "BUILD_GATES defaults to 'off' — must not flag a direct emit")
+            orig = validate_harness._load_const
+            with mock.patch.object(validate_harness, "_load_const",
+                                   lambda k, d=None: "error" if k == "BUILD_GATES" else orig(k, d)):
+                errs = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+                self.assertIn("BUILD_GATES_SKIPPED", errs, "BUILD_GATES=error must REQUIRE the gate artifacts")
+
+
 class TestEmittedHarnessDNAFires(unittest.TestCase):
     """P2: end-to-end proof that the inherited DNA actually FIRES on an EMITTED harness — the durable,
     CI-able equivalent of `cd <harness> && claude` (a nested interactive session can't be spawned here).
@@ -920,13 +974,23 @@ class TestEmittedHarnessDNAFires(unittest.TestCase):
             # 4) PreToolUse -> budget_block now FIRES (exit 2): the spawn ceiling is a real interlock
             self.assertEqual(self._drive(td, "budget_block.py").returncode, 2, "spawn ceiling must fire exit-2")
 
-            # 5) PostToolUse -> qa_gate_runner L0 BLOCKS a recorded-but-missing deliverable, passes a present one
+            # 5) PostToolUse -> qa_gate_runner: L0 blocks a missing deliverable; L1 (MANDATORY) then blocks until
+            #    a verification log exists; both present -> pass.
             txt = open(state).read().replace("outputs: {}", "outputs:\n  step-1: _workspace/s1/out.md")
             open(state, "w").write(txt)
             self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 2, "QA L0 must block a missing deliverable")
             os.makedirs(os.path.join(td, "_workspace", "s1"))
             open(os.path.join(td, "_workspace", "s1", "out.md"), "w").write("x" * 200)
-            self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 0, "QA L0 passes a present deliverable")
+            self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 2,
+                             "QA L1 must block (mandatory) until a verification log exists")
+            os.makedirs(os.path.join(td, "verification-logs"), exist_ok=True)
+            open(os.path.join(td, "verification-logs", "step-1-verify.md"), "w").write(
+                "# Verification — step 1\n\n"
+                "- [x] Functional goal met: PASS — the deliverable is present and addresses the node objective.\n"
+                "- [x] Output schema conformance: PASS — the returned JSON matches the node output_schema.\n\n"
+                "Overall: PASS\n")
+            self.assertEqual(self._drive(td, "qa_gate_runner.py").returncode, 0,
+                             "QA passes once L0 deliverable + a valid L1 verification log both exist")
 
             # 6) the genome security hook FIRES on a destructive command, allows a benign one
             self.assertEqual(self._drive(td, "block_destructive_commands.py",

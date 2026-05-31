@@ -9,6 +9,7 @@
   "ENSURE_GUARD": { "verify": 20000, "synthesize": 30000 },
   "MODEL_RATIONALE_MISSING": "warn",
   "LIFT_UNMEASURED": "warn",
+  "BUILD_GATES": "off",
   "REFLECT_CRITIC": "opus",
   "DEEP_RESEARCH_BUDGET_TOTAL_TOKENS": 600000,
   "LIFT_GATE_THRESHOLD": 0.2,

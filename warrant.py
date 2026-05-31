@@ -204,6 +204,14 @@ def main():
                    "=> show band, BLOCK on explicit 'approve' before first agent() spawns."}
     json.dump(out, sys.stdout, indent=2)
     sys.stdout.write("\n")
+    # P1-4 (audit): persist the warrant verdict as a build-time gate ARTIFACT so the 4-stage workflow's PRE
+    # step is RECORDED on disk (validate's opt-in BUILD_GATES policy can then require it). Derived from --graph.
+    if args.graph:
+        hp = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(args.graph))), ".harness")
+        if os.path.isdir(hp):
+            with open(os.path.join(hp, "warrant.json"), "w", encoding="utf-8") as f:
+                json.dump(out, f, indent=2, ensure_ascii=False)
+                f.write("\n")
 
 
 if __name__ == "__main__":
