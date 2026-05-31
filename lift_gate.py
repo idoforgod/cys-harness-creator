@@ -178,9 +178,7 @@ def main():
             r = json.load(f)
         out = score(r["with_results"], r["without_results"], r["assertions"])
         if args.out:
-            d = os.path.dirname(os.path.abspath(args.out))
-            if d:
-                os.makedirs(d, exist_ok=True)
+            os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
             with open(args.out, "w") as f:
                 json.dump(out, f, indent=2)
                 f.write("\n")

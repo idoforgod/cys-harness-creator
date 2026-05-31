@@ -46,3 +46,6 @@ _workspace/probe/
 # --- regenerable lift probe (lift_gate.py emit-probe); never commit ---
 examples/_probes/
 *.lift_probe.workflow.js
+
+# --- factory runtime log (genome hook output, not source) ---
+.claude/context-snapshots/security.log
