@@ -23,6 +23,56 @@
 
 `graph.json`을 만드는 것은 중간 산출물입니다. **`cd <harness> && claude`로 열면 그 세션의 hook이 발화하고 오케스트레이터가 Claude 프리미티브로 그래프를 실행하는 것** — 그것이 최종 목표입니다.
 
+## 빠른 시작
+
+### 1. 스킬 설치 — 쉬운 것부터
+
+진입점은 `/harness-creator` 스킬 하나입니다. 아래에서 **편한 방법 하나**만 고르면 됩니다(쉬운 순). 모든 셸 명령은 **이 저장소 루트에서** 실행합니다.
+
+**① 플러그인 마켓플레이스 — Claude Code 안에서 두 줄 (가장 쉬움)**
+
+```text
+/plugin marketplace add idoforgod/cys-harness-creator
+/plugin install harness-creator@cys-harness-marketplace
+```
+
+GitHub 대신 로컬 클론을 마켓플레이스로 등록해도 됩니다 — `/plugin marketplace add /Users/cys/Desktop/CYSjavis/cys-harness-creator` 후 동일하게 `install`.
+
+**② 번들 설치 스크립트 — 셸 한 줄 (활성 프로필)**
+
+```bash
+./install.sh        # SKILL.md + references 8종 → $CLAUDE_CONFIG_DIR/skills/harness-creator/ (기본 ~/.claude)
+```
+
+**③ 멀티 프로필 동시 설치 — 마스터·워커 프로필 한 번에**
+
+```bash
+./install.sh ~/.claude ~/.claude-cysinsight ~/.claude-cysfuturist
+```
+
+**④ 수동 심링크 — 개발용(SKILL.md 편집이 즉시 반영)**
+
+```bash
+mkdir -p ~/.claude/skills
+ln -s "$PWD/skills/harness-creator" ~/.claude/skills/harness-creator
+```
+
+> **공통 전제:** 어느 방법이든 스킬은 `/harness-creator` **진입점만** 등록합니다. 실제 도구(`warrant.py`·`emit_orchestrator.py`·`validate_harness.py` 등)는 **이 저장소 클론에 그대로 남아** `TOOLS_ROOT=/Users/cys/Desktop/CYSjavis/cys-harness-creator`에서 실행됩니다(SKILL.md의 고정 경로). 따라서 **이 저장소가 그 경로에 클론되어 있어야** 합니다(개인·내부용 전제). 설치 후 `/harness-creator <도메인 한 문장>`으로 호출합니다.
+
+### 2. 빠른 검증 (프리미티브 경로)
+
+```bash
+TR=/Users/cys/Desktop/CYSjavis/cys-harness-creator
+python3 "$TR"/warrant.py --graph examples/deep-research/.harness/graph.json   # 비용밴드 (→ 사람 승인)
+python3 "$TR"/emit_orchestrator.py examples/deep-research                     # graph.json → 오케스트레이터 + agents + 게놈
+python3 "$TR"/validate_harness.py  examples/deep-research                     # PASS (exit 0)
+python3 -m pytest tests/test_factory.py -q                                    # 134 factory tests
+
+# in-project 오버레이 설치:  python3 "$TR"/emit_orchestrator.py <host-project> --in-project
+```
+
+**실행 핸드오프:** 산출 후 하네스를 *실행*하려면 `cd <harness> && claude`로 **새 세션**을 열어야 그 세션의 `settings.json` hook이 발화합니다(공장 세션이 아님).
+
 ## 워크플로우 구조
 
 팩토리는 AgenticWorkflow의 3단계(Research → Planning → Implementation)를 상속하되, 그 앞에 **PRE 게이트**를, 뒤에 **Evolution 단계**를 더해 4-스테이지로 운영합니다. 각 단계는 CYS 머신체크 게이트로 강제됩니다.
@@ -248,24 +298,6 @@ blind 헤드투헤드 — C2(CYS 하네스) vs C3(no-harness opus), 8-assertion 
 | **ticket-triage** | dispatch | 분류 · 우선순위 · 라우팅 |
 
 각 예제에는 `.harness/graph.json`(불변 계약) + `harness.md`(게놈 가시화) + `.claude/`(런타임 DNA) + `schemas/`가 포함됩니다.
-
-## 빠른 시작
-
-```bash
-# 1) /harness-creator 스킬 전역 설치 (도구는 이 디렉토리에 그대로 둠)
-./install.sh                      # 또는: ./install.sh ~/.claude ~/.claude-cysinsight ~/.claude-cysfuturist
-
-# 2) 빠른 검증 (프리미티브 경로)
-TR=/Users/cys/Desktop/CYSjavis/cys-harness-creator
-python3 "$TR"/warrant.py --graph examples/deep-research/.harness/graph.json   # 비용밴드 (→ 사람 승인)
-python3 "$TR"/emit_orchestrator.py examples/deep-research                     # graph.json → 오케스트레이터 + agents + 게놈
-python3 "$TR"/validate_harness.py  examples/deep-research                     # PASS (exit 0)
-python3 -m pytest tests/test_factory.py -q                                    # 134 factory tests
-
-# in-project 오버레이 설치:  python3 "$TR"/emit_orchestrator.py <host-project> --in-project
-```
-
-**실행 핸드오프:** 산출 후 하네스를 *실행*하려면 `cd <harness> && claude`로 **새 세션**을 열어야 그 세션의 `settings.json` hook이 발화합니다(공장 세션이 아님).
 
 ## 현재 상태
 
