@@ -37,21 +37,6 @@
 
 **Implementation은 P5 사람 승인 전 실행 금지.** 진화로 라우팅된 수정은 해당 Implementation 단계로 재진입해 **`validate` 재통과**가 강제됩니다(진화가 계약을 퇴행시키지 못함).
 
-## 핵심 차별 (vs idoforgod/harness)
-
-| 영역 | idoforgod/harness | CYS Harness Creator |
-|------|-------------------|---------------------|
-| 규칙 | advisory prose | `validate_harness.py` 정적 **강제**(~36 코드, 위반 시 빌드 실패) |
-| 실행 | 없음(.md만 생성) | **라이브 오케스트레이터 SKILL** = Claude 프리미티브로 그래프 실행, 상속 게놈 hook이 발화 |
-| 계약 | 산문 | 불변 머신체크 `graph.json`(7 topology × 4 decision-mechanism) |
-| 비용 | `model:opus` 전역 | 역할→티어 정책 + `warrant.py` 사전 토큰밴드 승인 + 런타임 spawn ceiling(exit-2) |
-| 품질 | prose-compliance | L0–L2 게이트가 hook으로 **발화**(`qa_gate_runner`/`gate_or_block`) |
-| 기억 | 세션 한정 | Tier I Context Preservation + Tier II RLM 교차-실행 도메인 메모리 |
-| 측정 | 자기참조 | blind 헤드투헤드 C2 vs C3 scorecard(능가 or **정직 미달 보고**) |
-| 설치 | in-project만 | 자족(self-contained) + **in-project 오버레이**(`--in-project`, 호스트 보존) |
-
-**기준은 성능 우월성이 아니라 기능적 완전성** — idoforgod의 모든 기능을 동일하게 구현 가능하되, 그 위에 머신체크 계약·역할-티어 정책·비용 거버넌스·게놈 발화·측정 인프라를 더합니다.
-
 ## 프로젝트 구조
 
 ```
