@@ -73,6 +73,32 @@ python3 -m pytest tests/test_factory.py -q                                    # 
 
 **실행 핸드오프:** 산출 후 하네스를 *실행*하려면 `cd <harness> && claude`로 **새 세션**을 열어야 그 세션의 `settings.json` hook이 발화합니다(공장 세션이 아님).
 
+## 왜 풀스택 하네스인가
+
+대부분의 "하네스"는 스택의 **한두 조각**입니다 — 프롬프트 템플릿 하나, 단일 에이전트, 또는 워크플로우 스크립트. `/harness-creator`가 산출하는 것은 다릅니다: **도메인 작업을 실제로 수행하는 데 필요한 수직 전 계층을 한 번에 인스턴스화하고, 서로 맞물려 돌아가게** 합니다. 그래서 "풀스택"입니다 — 6종 Claude Code 프리미티브(실행 계층)를 거버넌스·지속·계약 계층이 감싼 형태입니다.
+
+```
+  ▲ 거버넌스    warrant 사전승인(P5) + budget 런타임 ceiling(exit-2)
+  │ 계약        머신체크 graph.json(불변 SoT) + graph.lock(sha256)
+  │ 수명주기    git repo + 진화 시스템(E1-E6 · change-history)
+  │ 지속 기억   2-tier 장기기억(Context Preservation + 교차-실행 메모리)
+  │ 상속 DNA    AgenticWorkflow 게놈 — 참조가 아니라 임베드
+  ├─ 6종 Claude Code 프리미티브 (A2 floor · 전부 강제) ──────────
+  │ Orchestrator SKILL   그래프 실행 진입점(WHO × HOW 조율)
+  │ Agent Teams          TeamCreate / TaskCreate(deps) / SendMessage / TeamDelete
+  │ Sub-agents (Agent)   위임 실행 단위
+  │ .claude/agents/      WHO — 노드별 전문 에이전트(model 티어 · least-priv tools)
+  │ .claude/skills/      도메인 HOW — 하이브리드 스킬
+  ▼ Hooks               런타임 가드레일(L0-L2 · budget · SOT · 보안, exit-2 발화)
+```
+
+### 풀스택이어야 하는 이유
+
+1. **각 층은 다른 층이 못 하는 일을 한다.** 에이전트는 *추론*하고, 팀은 *의존성을 조율*하고, 훅은 *결정론적으로 강제*하고, 스킬은 *도메인 how*를 싣고, 메모리는 *세션을 넘어 지속*하고, 게놈은 *상속된 품질·안전 DNA를 강제*합니다. 한 층을 빼면 그 능력이 통째로 사라집니다 — 프롬프트 한 덩어리로는 의존성 조율도, exit-2 강제도, 교차-실행 기억도 할 수 없습니다.
+2. **"풀스택"은 수사가 아니라 빌드 게이트가 거부하는 조건이다 (A2 floor).** `validate_harness.py`의 `ALL_PRIMITIVES_PRESENT`가 6종 프리미티브 **전부**를 요구합니다. 하나라도 빠지면 **빌드 실패**입니다(그래서 `execution_mode`는 `team`/`hybrid`만 가능 — pure-`agent`는 TeamCreate가 없어 탈락). 조각난 하네스는 애초에 출하되지 않습니다. 상세 계약은 아래 **산출 하네스 — 6종 프리미티브** 섹션을 참고.
+3. **풀스택이라야 산출물이 그 자체로 돌아간다.** `cd <harness> && claude` 한 번이면 그 세션의 hook이 발화하고 오케스트레이터가 프리미티브로 그래프를 실행합니다 — 사용자가 따로 배선할 것이 없습니다. 반쪽 하네스는 "이 부분은 직접 연결하세요"가 남지만, 풀스택은 **발화 준비가 끝난** 상태(자기완결 · 실행가능 · 거버넌스 · 진화가능)로 나옵니다.
+4. **조립 설명서가 아니라 조립된 기계.** prose 규칙(essays)이나 단일 프롬프트는 "이렇게 만드세요"를 줍니다. CYS는 **검증되고 · 비용통제되고 · 재개가능한, 이미 조립된 기계**를 줍니다 — 부모 게놈의 절대기준까지 임베드한 채로(**"rules-as-essays → rules-as-assertions"**).
+
 ## 워크플로우 구조
 
 팩토리는 AgenticWorkflow의 3단계(Research → Planning → Implementation)를 상속하되, 그 앞에 **PRE 게이트**를, 뒤에 **Evolution 단계**를 더해 4-스테이지로 운영합니다. 각 단계는 CYS 머신체크 게이트로 강제됩니다.
