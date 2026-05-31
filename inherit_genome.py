@@ -336,25 +336,50 @@ def _verify(harness_dir):
     return errors
 
 
-def _init_memory_store(harness_dir):
-    """Seed the Tier-II cross-run domain memory store (M6) — the RLM 'external environment' the harness
-    queries programmatically across repeated RUNS. IDEMPOTENT: only creates missing seed files, never
-    clobbers accumulated runs/knowledge (so memory accretes run over run)."""
+# Tier-II seed text flavored by store kind: "domain" (emitted harness — domain-run memory) vs
+# "build" (factory self-host — harness-build memory). Same structure; only the prose differs.
+_MEMORY_SEED_FLAVOR = {
+    "domain": {
+        "purpose": "Tier-II cross-run domain memory (RLM external environment) — query programmatically, never bulk-load",
+        "runs": "thin append-only probe; one line per run. Grep it, then Read only matched runs/<id>/.",
+        "dks": "IMMORTAL DKS: entities/relations/constraints, reused as L1 verification criteria.",
+        "risk": "IMMORTAL standing decisions / risks (e.g. 'never use source X').",
+        "recipe": "Grep '<query tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<run_id>/* on a hit only",
+        "dks_header": ("# IMMORTAL domain knowledge (DKS) — entities/relations/constraints,"
+                       " accreted across runs.\nentities: {}\nrelations: []\nconstraints: []\n"),
+    },
+    "build": {
+        "purpose": "Tier-II cross-BUILD memory (factory self-host) — one line per emitted harness; recall before authoring a new graph",
+        "runs": "thin append-only probe; one line per harness BUILD. Grep it, then Read only matched runs/<build_id>/.",
+        "dks": "IMMORTAL build knowledge: domain -> topology/tier/mechanism patterns, reused when authoring a new graph.",
+        "risk": "IMMORTAL standing build decisions / anti-patterns (e.g. 'workflow.js retired', 'all-6 floor', 'presence != wiring').",
+        "recipe": "Grep '<domain tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<build_id>/* on a hit only",
+        "dks_header": ("# IMMORTAL build knowledge — domain -> topology/tier/mechanism patterns,"
+                       " accreted across harness builds.\nentities: {}\nrelations: []\nconstraints: []\n"),
+    },
+}
+
+
+def _init_memory_store(harness_dir, kind="domain"):
+    """Seed the Tier-II cross-run memory store (M6) — the RLM 'external environment' queried
+    programmatically across repeated RUNS. kind="domain" (emitted harness — domain-run memory) or
+    "build" (factory self-host — harness-build memory): identical structure, flavored seed text only.
+    IDEMPOTENT: only creates missing seed files, never clobbers accumulated runs/knowledge."""
+    f = _MEMORY_SEED_FLAVOR.get(kind, _MEMORY_SEED_FLAVOR["domain"])
     mem = os.path.join(harness_dir, ".harness", "memory")
     os.makedirs(os.path.join(mem, "runs"), exist_ok=True)
     os.makedirs(os.path.join(mem, "risk"), exist_ok=True)
     seeds = {
         "archive.manifest.json": json.dumps({
             "schema_version": "0.1",
-            "purpose": "Tier-II cross-run domain memory (RLM external environment) — query programmatically, never bulk-load",
+            "purpose": f["purpose"],
             "sections": {
-                "runs/index.jsonl": "thin append-only probe; one line per run. Grep it, then Read only matched runs/<id>/.",
-                "domain-knowledge.yaml": "IMMORTAL DKS: entities/relations/constraints, reused as L1 verification criteria.",
-                "risk/decisions.jsonl": "IMMORTAL standing decisions / risks (e.g. 'never use source X')."},
-            "query_recipe": "Grep '<query tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<run_id>/* on a hit only",
+                "runs/index.jsonl": f["runs"],
+                "domain-knowledge.yaml": f["dks"],
+                "risk/decisions.jsonl": f["risk"]},
+            "query_recipe": f["recipe"],
         }, indent=2, ensure_ascii=False) + "\n",
-        "domain-knowledge.yaml": ("# IMMORTAL domain knowledge (DKS) — entities/relations/constraints,"
-                                  " accreted across runs.\nentities: {}\nrelations: []\nconstraints: []\n"),
+        "domain-knowledge.yaml": f["dks_header"],
         os.path.join("runs", "index.jsonl"): "",
         os.path.join("risk", "decisions.jsonl"): "",
     }

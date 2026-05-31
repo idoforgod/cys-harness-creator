@@ -113,7 +113,7 @@ cys-harness-creator/
 │   ├── compare-vs-idoforgod-harness.md
 │   └── … (philosophy · blueprint · pivot)
 │
-├── tests/test_factory.py        # 팩토리 자기테스트 (106 tests)
+├── tests/test_factory.py        # 팩토리 자기테스트 (116 tests)
 └── .claude-plugin/              # plugin.json · marketplace.json (/harness-creator 플러그인)
 ```
 
@@ -259,7 +259,7 @@ TR=/Users/cys/Desktop/CYSjavis/cys-harness-creator
 python3 "$TR"/warrant.py --graph examples/deep-research/.harness/graph.json   # 비용밴드 (→ 사람 승인)
 python3 "$TR"/emit_orchestrator.py examples/deep-research                     # graph.json → 오케스트레이터 + agents + 게놈
 python3 "$TR"/validate_harness.py  examples/deep-research                     # PASS (exit 0)
-python3 -m pytest tests/test_factory.py -q                                    # 106 factory tests
+python3 -m pytest tests/test_factory.py -q                                    # 116 factory tests
 
 # in-project 오버레이 설치:  python3 "$TR"/emit_orchestrator.py <host-project> --in-project
 ```
@@ -272,7 +272,8 @@ python3 -m pytest tests/test_factory.py -q                                    # 
 - **P1.2** in-project 오버레이 설치(호스트 보존) · **P1.3** lift 빌드 배선 · **P1.4** h2h StructuredOutput 견고화
 - **P2** 라이브 DNA 발화 end-to-end 증명 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4·P2 보강
 - **자동 교정 루프** — 린터(`lint_guard`)+맞춤법(`spell_guard`)+프리커밋(`precommit_gate`)이 `exit-2 + stderr`로 Claude 자가수정 유도(팩토리 자기적용 + 게놈 전수, `.lint-guard` 토글)
-- **106 factory tests green · 4 예제 validate 0/0**
+- **3층위 장기기억 self-hosting** — 회상이 prose가 아니라 실행 단계로 배선(`MEMORY_RECALL_WIRED`); 팩토리도 자기 `.harness/memory/` 빌드 기억을 dogfood
+- **116 factory tests green · 4 예제 validate 0/0**
 
 ## 알려진 통합 경계
 

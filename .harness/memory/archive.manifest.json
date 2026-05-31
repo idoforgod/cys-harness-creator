@@ -1,0 +1,10 @@
+{
+  "schema_version": "0.1",
+  "purpose": "Tier-II cross-BUILD memory (factory self-host) — one line per emitted harness; recall before authoring a new graph",
+  "sections": {
+    "runs/index.jsonl": "thin append-only probe; one line per harness BUILD. Grep it, then Read only matched runs/<build_id>/.",
+    "domain-knowledge.yaml": "IMMORTAL build knowledge: domain -> topology/tier/mechanism patterns, reused when authoring a new graph.",
+    "risk/decisions.jsonl": "IMMORTAL standing build decisions / anti-patterns (e.g. 'workflow.js retired', 'all-6 floor', 'presence != wiring')."
+  },
+  "query_recipe": "Grep '<domain tokens>' .harness/memory/runs/index.jsonl -> Read .harness/memory/runs/<build_id>/* on a hit only"
+}

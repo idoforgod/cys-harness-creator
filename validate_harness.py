@@ -612,6 +612,13 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
                 r.err("MEMORY_SKILL_SECTION",
                       "orchestrator SKILL lacks the Tier-II cross-run memory recipe "
                       "(교차-실행 도메인 메모리 + runs/index.jsonl)", sk)
+            # MEMORY_RECALL_WIRED (3-tier P0): recall must be a Phase-0 EXECUTION step that relays into
+            # _workspace/_recall.json (read by downstream agents) — not just the prose 'memory operations'
+            # recipe. Guards the field-observed regression where recall stayed vestigial (presence ≠ wiring).
+            if "_recall.json" not in txt:
+                r.err("MEMORY_RECALL_WIRED",
+                      "orchestrator Phase 0 does not WIRE Tier-II recall as an execution step "
+                      "(missing the _workspace/_recall.json relay — recall stays prose and never fires)", sk)
 
 
 def _count_phases(text):

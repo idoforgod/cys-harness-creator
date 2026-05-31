@@ -45,6 +45,7 @@ python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL
 5 술어 `{distinct_expertise_domains, has_dependent_or_parallel_stages, will_be_rerun, output_objective, noisy}` → `warrant.py --predicates`. `answer-directly`/`single-agent` → **종료**. `build-harness(topology, decision_mechanism, n_agents)` → RESEARCH.
 
 ### STAGE 1 — RESEARCH (수집·분석; 사람 게이트 없음)
+- **R0 빌드 회상 (장기기억 층위 2 — self-host)** — graph 저작 전, 팩토리 자신의 빌드 메모리를 회상한다: `Grep "<도메인 정규화 토큰>" "$TR"/.harness/memory/runs/index.jsonl`로 유사 도메인의 과거 빌드를 찾고, **매치된 build_id만** `runs/<build_id>/`(있으면)와 `domain-knowledge.yaml`을 Read해 topology·tier·mechanism 패턴을 R3/P1 graph 저작에 주입한다(맹신 금지 — 현재 요건에 맞게 검증; 무매치/콜드면 "선례 없음"으로 진행). 이는 산출 하네스 오케스트레이터 Phase 0 회상과 **동일 메커니즘의 팩토리 self-host**다(부트스트랩: `python3 "$TR"/bootstrap_factory_memory.py`).
 - **R1 상태감사** — `audit_harness.py <TARGET>` → `.harness/audit.json {branch ∈ new/extend/maintain, drift[]}`. drift = 디스크 agents/skills ↔ graph 계약의 결정론 set-diff(idoforgod는 산문, CYS는 검증 가능한 사실).
 - **R2 도메인 분해** — 노드(id, 역할, inputs/outputs, write_paths), 사용자 숙련도 감지, 기존 에이전트/스킬 중복검토(R1 인벤토리 대조).
 - **R3 토폴로지+모드 분석** — 7 토폴로지(pipeline/dispatch/fan-out-fan-in/producer-reviewer/supervisor/expert-pool/hierarchical) + `execution_mode`(team 기본/hybrid). *분석만* — 아직 graph 미작성.
@@ -66,6 +67,7 @@ python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL
 - **I6 측정·테스트** — **lift 게이트**(skill 노드): `lift_gate.py emit-probe`로 probe 생성 → 런타임 실행(with-skill sonnet vs baseline haiku, blind opus grader) → `lift_gate.py score <results> --out <skill>/lift_verdict.json`. validate가 **측정 미실시=`LIFT_UNMEASURED`**(constants 정책, 기본 warn→error 전환가능)·**측정했으나 baseline 미달=`LIFT_REFUSED`(hard error)**로 게이트. + 트리거 near-miss(should/should-NOT), dry-run(dead-link).
 
 ### STAGE 4 — EVOLUTION (실행 + 학습; idoforgod Phase 7 + CYS 측정)
+- **E0 빌드 기록 (장기기억 층위 2 — self-host)** — 빌드 완료 후 이 빌드 경험을 팩토리 빌드 메모리에 단일쓰기로 기록한다: 임의 산출 하네스는 `bootstrap_factory_memory.record_build(graph, root="$TR")`로 `.harness/memory/runs/index.jsonl`에 1줄 추가(idempotent), examples는 `python3 "$TR"/bootstrap_factory_memory.py`. 재사용 가능한 설계 패턴(domain→topology/tier/mechanism)은 `domain-knowledge.yaml`에, 빌드 교훈·안티패턴은 `risk/decisions.jsonl`에 병합한다. 다음 빌드의 **R0 회상**이 이를 활용한다(회상→기록 사이클 폐합).
 - **E1 git** — `git init && git add -A && git commit`.
 - **E2 head-to-head (선택)** — `evals/<domain>.scorecard.json` C2(이 하네스) vs C3(no-harness) n-run → `h2h_aggregate.py`(median, 15pp margin). 8 use case parity는 `eval_topology.py`. `MEASUREMENT_DRIFT`가 정직성 강제(현재 stamped: **n=5 +12.5pp INCONCLUSIVE — CYS 우세, 마진 미달**).
 - **E3-E6 진화** — `evolve_harness.py`: 피드백 유형→대상 라우팅 + `.harness/change-history.jsonl`(append-only) + `--proactive`(같은 유형 2회↑ 자동 제안) + 유지보수(재감사→한 번에 하나 수정→재검증→CLAUDE.md 동기화). 라우팅된 수정은 해당 Implementation 단계 재진입 후 **validate 재통과**(진화가 계약을 퇴행시키지 못함).

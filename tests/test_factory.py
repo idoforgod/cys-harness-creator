@@ -1528,5 +1528,137 @@ class TestSpellGuard(unittest.TestCase):
             self.assertTrue(any("역할" in f for f in found), "a real body typo is still caught when code is present")
 
 
+class TestFactoryBuildMemory(unittest.TestCase):
+    """P0a (3-tier memory, layer 1) — the factory self-hosts a kind='build' Tier-II store (same
+    mechanism it transplants to harnesses) and imports existing examples/ as build history, so the
+    build-recall (layer 2) is not cold on the next build. See design/adr-3tier-memory-self-hosting.md."""
+
+    def test_init_store_build_kind_flavors_seed(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            inherit_genome._init_memory_store(td, kind="build")
+            man = json.load(open(os.path.join(td, ".harness", "memory", "archive.manifest.json"), encoding="utf-8"))
+            self.assertIn("build", man["purpose"].lower(), "build store purpose mentions builds, not domain runs")
+            dks = open(os.path.join(td, ".harness", "memory", "domain-knowledge.yaml"), encoding="utf-8").read()
+            self.assertIn("build", dks.lower())
+
+    def test_init_store_domain_kind_unchanged(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            inherit_genome._init_memory_store(td)  # default kind="domain" — regression guard
+            man = json.load(open(os.path.join(td, ".harness", "memory", "archive.manifest.json"), encoding="utf-8"))
+            self.assertIn("domain", man["purpose"].lower())
+
+    def test_import_examples_records_build_metadata(self):
+        import bootstrap_factory_memory as bfm
+        with tempfile.TemporaryDirectory() as td:
+            d = os.path.join(td, "examples", "alpha", ".harness")
+            os.makedirs(d)
+            json.dump({"harness_name": "alpha", "topology": "pipeline", "execution_mode": "team",
+                       "nodes": [{"agent": "scout"}, {"agent": "synth"}]},
+                      open(os.path.join(d, "graph.json"), "w", encoding="utf-8"))
+            bfm.import_examples(td)
+            idx = os.path.join(td, ".harness", "memory", "runs", "index.jsonl")
+            recs = [json.loads(ln) for ln in open(idx, encoding="utf-8") if ln.strip()]
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["build_id"], "alpha")
+            self.assertEqual(recs[0]["topology"], "pipeline")
+            self.assertEqual(recs[0]["n_nodes"], 2)
+
+    def test_import_examples_is_idempotent(self):
+        import bootstrap_factory_memory as bfm
+        with tempfile.TemporaryDirectory() as td:
+            for nm in ("alpha", "beta"):
+                d = os.path.join(td, "examples", nm, ".harness")
+                os.makedirs(d)
+                json.dump({"harness_name": nm, "topology": "dispatch", "execution_mode": "team",
+                           "nodes": [{"agent": "x"}]}, open(os.path.join(d, "graph.json"), "w", encoding="utf-8"))
+            first = bfm.import_examples(td)
+            second = bfm.import_examples(td)
+            self.assertEqual(sorted(first), ["alpha", "beta"])
+            self.assertEqual(second, [], "re-import adds nothing (idempotent — no duplicate build records)")
+            idx = os.path.join(td, ".harness", "memory", "runs", "index.jsonl")
+            self.assertEqual(len([ln for ln in open(idx, encoding="utf-8") if ln.strip()]), 2)
+
+    def test_record_build_appends_arbitrary_harness(self):
+        import bootstrap_factory_memory as bfm
+        with tempfile.TemporaryDirectory() as td:
+            g = {"harness_name": "gamma", "topology": "supervisor", "execution_mode": "team",
+                 "nodes": [{"agent": "lead"}, {"agent": "w1"}]}
+            self.assertTrue(bfm.record_build(g, root=td), "first record returns True")
+            self.assertFalse(bfm.record_build(g, root=td), "same build_id is idempotent (no dup)")
+            recs = [json.loads(ln) for ln in
+                    open(os.path.join(td, ".harness", "memory", "runs", "index.jsonl"), encoding="utf-8") if ln.strip()]
+            self.assertEqual(len(recs), 1)
+            self.assertEqual(recs[0]["topology"], "supervisor")
+
+
+class TestBuildRecallWired(unittest.TestCase):
+    """P0b (3-tier memory, layer 2) — the harness-creator SKILL workflow wires build-RECALL before
+    authoring a graph and build-RECORD at evolution, against the factory's own build store. Guards
+    against the 'spec exists, not wired' regression (recall must be an executable workflow step)."""
+
+    def _skill(self):
+        return open(os.path.join(ROOT, "skills", "harness-creator", "SKILL.md"), encoding="utf-8").read()
+
+    def test_skill_wires_build_recall_before_authoring(self):
+        s = self._skill()
+        self.assertIn("빌드 회상", s, "RESEARCH wires a build-recall step")
+        self.assertIn(".harness/memory/runs/index.jsonl", s, "recall greps the factory build index")
+
+    def test_skill_wires_build_record_at_evolution(self):
+        s = self._skill()
+        self.assertIn("빌드 기록", s, "EVOLUTION wires a build-record step")
+        self.assertIn("bootstrap_factory_memory", s, "build-record uses the factory build-memory tool")
+
+
+class TestLayer3RecallWired(unittest.TestCase):
+    """P0 (3-tier memory, layer 3) — emit_orchestrator wires Tier-II recall as a Phase-0 EXECUTION
+    step that relays into _workspace/_recall.json (read by downstream agents), not just the prose
+    'memory operations' recipe; validate's MEMORY_RECALL_WIRED enforces it (presence -> wiring)."""
+
+    def _g(self):
+        return {"schema_version": "0.1", "harness_name": "mem-probe", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [{"id": "a", "agent": "sa", "model": "haiku", "decision_mechanism": "single",
+                           "mechanism_params": {}, "inputs": [], "outputs": ["o"], "write_paths": [],
+                           "output_schema": "schemas/o.json", "retries": 0, "on_exhaust": "escalate",
+                           "max_rounds": 1}],
+                "edges": []}
+
+    def test_phase0_wires_recall_relay(self):
+        import emit_orchestrator
+        skill = emit_orchestrator._orchestrator_skill(self._g(), ["a"])
+        self.assertIn("_recall.json", skill, "Phase 0 relays Tier-II recall into _workspace/_recall.json")
+        self.assertIn(".harness/memory/runs/index.jsonl", skill, "Phase 0 greps the run index (executable recall)")
+
+    def test_phase0_label_names_recall(self):
+        import emit_orchestrator
+        self.assertIn("회상", emit_orchestrator.PHASES[0], "Phase 0 label announces recall, not just SOT init")
+
+    def _build(self, td):
+        g = self._g()
+        os.makedirs(os.path.join(td, ".harness"))
+        os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        json.dump({"type": "object"}, open(os.path.join(td, "schemas", "o.json"), "w"))
+        return g
+
+    def test_validate_enforces_recall_wiring(self):
+        with tempfile.TemporaryDirectory() as td:
+            g = self._build(td)
+            emit_orchestrator.emit_orchestrator(g, td)
+            # positive: a fresh emit wires Phase-0 recall, so the gate does not fire
+            codes = {i["code"] for i in validate_harness.validate(td).items}
+            self.assertNotIn("MEMORY_RECALL_WIRED", codes, "fresh emit must wire Phase-0 recall")
+            # negative: strip the recall relay (revert to prose-only) -> the gate fires
+            skp = os.path.join(td, ".claude", "skills", "mem-probe-orchestrator", "SKILL.md")
+            txt = open(skp, encoding="utf-8").read().replace("_recall.json", "REDACTED")
+            open(skp, "w", encoding="utf-8").write(txt)
+            errs = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("MEMORY_RECALL_WIRED", errs, "an unwired-recall orchestrator must error")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
