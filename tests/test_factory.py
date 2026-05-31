@@ -1722,5 +1722,90 @@ class TestAgentMemoryContract(unittest.TestCase):
             self.assertIn("AGENT_MEMORY_CONTRACT", errs, "a memory-blind agent must error")
 
 
+class TestMemoryRelay(unittest.TestCase):
+    """P2 (3-tier memory) — the orchestrator relays VERIFIED facts stage-to-stage THROUGH memory
+    (.harness/memory/runs/<id>/stage-N-facts.jsonl), and downstream nodes resolve input via SOT
+    outputs.step-N (not hardcoded paths). The verified-fact spine literally flows through memory
+    (bulk stays in _workspace/); validate's MEMORY_RELAY_WIRED enforces it."""
+
+    def _g(self):
+        return {"schema_version": "0.1", "harness_name": "mr", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [{"id": "a", "agent": "sa", "model": "haiku", "decision_mechanism": "single",
+                           "mechanism_params": {}, "inputs": [], "outputs": ["o"], "write_paths": [],
+                           "output_schema": "schemas/o.json", "retries": 0, "on_exhaust": "escalate",
+                           "max_rounds": 1}],
+                "edges": []}
+
+    def test_phase2_relays_stage_facts(self):
+        import emit_orchestrator
+        skill = emit_orchestrator._orchestrator_skill(self._g(), ["a"])
+        self.assertIn("stage-<N>-facts", skill, "Phase 2 relays verified facts through memory")
+        self.assertIn("outputs.step", skill, "downstream resolves input via SOT outputs.step-N")
+
+    def test_agent_input_reads_prior_stage_facts(self):
+        import emit_orchestrator
+        body = emit_orchestrator._agent_body(self._g(), self._g()["nodes"][0])
+        self.assertIn("stage-", body, "agent input reads the prior stage-facts spine, not just a hardcoded path")
+
+    def test_validate_enforces_memory_relay(self):
+        import emit_orchestrator
+        with tempfile.TemporaryDirectory() as td:
+            g = self._g()
+            os.makedirs(os.path.join(td, ".harness"))
+            os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", "o.json"), "w"))
+            emit_orchestrator.emit_orchestrator(g, td)
+            codes = {i["code"] for i in validate_harness.validate(td).items}
+            self.assertNotIn("MEMORY_RELAY_WIRED", codes, "a fresh emit wires the stage-facts relay")
+            skp = os.path.join(td, ".claude", "skills", "mr-orchestrator", "SKILL.md")
+            txt = open(skp, encoding="utf-8").read().replace("stage-<N>-facts", "REDACTED")
+            open(skp, "w", encoding="utf-8").write(txt)
+            errs = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("MEMORY_RELAY_WIRED", errs, "an orchestrator without the stage-facts relay must error")
+
+
+class TestIncrementalMemory(unittest.TestCase):
+    """P3 (3-tier memory) — Tier-II writes stream INCREMENTALLY: run START marks status=in_progress,
+    then facts/state update stage-by-stage and run end flips to completed — so a crash/parallel run
+    can recall PARTIAL progress (vs the deposit-at-end the field run showed). validate's
+    MEMORY_INCREMENTAL_WIRED enforces the in-progress marker."""
+
+    def _g(self):
+        return {"schema_version": "0.1", "harness_name": "im", "harness_version": "0.1.0",
+                "execution_mode": "team", "topology": "pipeline",
+                "budget": {"total_tokens": 1000, "approval_required": True},
+                "nodes": [{"id": "a", "agent": "sa", "model": "haiku", "decision_mechanism": "single",
+                           "mechanism_params": {}, "inputs": [], "outputs": ["o"], "write_paths": [],
+                           "output_schema": "schemas/o.json", "retries": 0, "on_exhaust": "escalate",
+                           "max_rounds": 1}],
+                "edges": []}
+
+    def test_phase0_marks_run_in_progress(self):
+        import emit_orchestrator
+        skill = emit_orchestrator._orchestrator_skill(self._g(), ["a"])
+        self.assertIn("in_progress", skill, "run START marks status=in_progress (incremental, not deposit-at-end)")
+        self.assertIn("completed", skill, "run end flips the same record to completed")
+
+    def test_validate_enforces_incremental(self):
+        import emit_orchestrator
+        with tempfile.TemporaryDirectory() as td:
+            g = self._g()
+            os.makedirs(os.path.join(td, ".harness"))
+            os.makedirs(os.path.join(td, "schemas"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            json.dump({"type": "object"}, open(os.path.join(td, "schemas", "o.json"), "w"))
+            emit_orchestrator.emit_orchestrator(g, td)
+            codes = {i["code"] for i in validate_harness.validate(td).items}
+            self.assertNotIn("MEMORY_INCREMENTAL_WIRED", codes, "a fresh emit streams Tier-II writes")
+            skp = os.path.join(td, ".claude", "skills", "im-orchestrator", "SKILL.md")
+            txt = open(skp, encoding="utf-8").read().replace("in_progress", "REDACTED")
+            open(skp, "w", encoding="utf-8").write(txt)
+            errs = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("MEMORY_INCREMENTAL_WIRED", errs, "deposit-at-end (no in_progress marker) must error")
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

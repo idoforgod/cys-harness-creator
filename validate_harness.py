@@ -626,6 +626,18 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
                 r.err("MEMORY_RECALL_WIRED",
                       "orchestrator Phase 0 does not WIRE Tier-II recall as an execution step "
                       "(missing the _workspace/_recall.json relay — recall stays prose and never fires)", sk)
+            # MEMORY_RELAY_WIRED (3-tier P2): verified facts must relay stage-to-stage THROUGH memory
+            # (stage-N-facts.jsonl) so the fact spine flows through long-term memory, not only _workspace/.
+            if "stage-<N>-facts" not in txt:
+                r.err("MEMORY_RELAY_WIRED",
+                      "orchestrator Phase 2 does not relay verified facts through memory "
+                      "(missing the stage-<N>-facts.jsonl spine — data never flows through long-term memory)", sk)
+            # MEMORY_INCREMENTAL_WIRED (3-tier P3): Tier-II writes must STREAM (run START status=in_progress,
+            # updated stage-by-stage) so a crash/parallel run recalls partial progress — not deposit-at-end.
+            if "in_progress" not in txt:
+                r.err("MEMORY_INCREMENTAL_WIRED",
+                      "orchestrator does not stream Tier-II writes (no run-START status=in_progress marker — "
+                      "memory is deposited only at the end, so a crash/parallel run loses all progress)", sk)
 
 
 def _count_phases(text):
