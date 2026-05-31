@@ -161,6 +161,25 @@ def validate(harness_dir):
               "topology='producer-reviewer' but no node has a 'review' block — the L2 adversarial reviewer "
               "never fires; add review:{agent:'reviewer'} to the reviewed node", gpath)
 
+    # TOPOLOGY_STRUCTURE (audit P2-A): a declared topology must match the NODE STRUCTURE, not just emit a
+    # prose marker — else a trivial 1-node graph 'conforms' to fan-out-fan-in and hierarchical alike. fan-out-
+    # fan-in needs >=2 parallel producers converging to a sink (a node with >=2 incoming edges); hierarchical
+    # needs >=2 delegation levels (>=3 nodes). pipeline/dispatch/supervisor/expert-pool have no extra structural
+    # floor here (supervisor/expert-pool are runtime-dynamic).
+    _topo, _edges = graph.get("topology"), graph.get("edges", [])
+    if _topo == "fan-out-fan-in":
+        _indeg = {}
+        for _e in _edges:
+            _indeg[_e["to"]] = _indeg.get(_e["to"], 0) + 1
+        if len(nodes) < 3 or not any(v >= 2 for v in _indeg.values()):
+            r.err("TOPOLOGY_STRUCTURE",
+                  "topology='fan-out-fan-in' needs >=2 parallel producers converging to a sink (a node with "
+                  ">=2 incoming edges) over >=3 nodes — got %d node(s), max fan-in %d"
+                  % (len(nodes), max(_indeg.values()) if _indeg else 0), gpath)
+    elif _topo == "hierarchical" and len(nodes) < 3:
+        r.err("TOPOLOGY_STRUCTURE",
+              "topology='hierarchical' needs >=2 delegation levels (>=3 nodes) — got %d" % len(nodes), gpath)
+
     # per-node: AGENT_EXISTS, AGENT_FRONTMATTER, tier V1/V2/V3, SCHEMA_FILE_EXISTS, ABSOLUTE_PATHS, conditional params
     lock_owners = {}
     for n in nodes:
@@ -342,6 +361,34 @@ def validate(harness_dir):
                 r.add("BUILD_GATES_SKIPPED", _bg,
                       "build-time gate not recorded: %s (%s) — the 4-stage workflow step did not run "
                       "(BUILD_GATES=%s)" % (_art, _label, _bg), _art)
+
+    # GRAPH_PROVENANCE (P2-C/audit): the graph.json 'single-writer contract' was unenforced — a hand-edited
+    # graph validated 0/0. If emit stamped .harness/graph.lock, WARN when graph.json changed after emit
+    # (re-emit to re-bless). Warn (not error): an author may legitimately hand-tune then re-emit.
+    _lock = os.path.join(harness_dir, ".harness", "graph.lock")
+    if os.path.isfile(_lock):
+        try:
+            import hashlib
+            _want = json.load(open(_lock, encoding="utf-8")).get("sha256")
+            _got = hashlib.sha256(open(gpath, "rb").read()).hexdigest()
+            if _want and _want != _got:
+                r.warn("GRAPH_PROVENANCE",
+                       "graph.json changed after emit (sha256 != .harness/graph.lock) — re-run emit_orchestrator "
+                       "to re-bless the contract, or the orchestrator/agents are out of sync with the graph", gpath)
+        except (ValueError, OSError):
+            pass
+
+    # QA_TOKEN_TRAP (P2-G/audit): the role-class regex tests qa|lint|check|verify|valid BEFORE critic|review, so
+    # a node whose name has BOTH a qa-token AND a critic-token (e.g. 'qa-coherence-reviewer') resolves to
+    # qa-scan/haiku — qa wins — silently under-tiering an intended critic. Warn precisely on that name collision
+    # (a plain 'verify'/'verifier' node has no critic token and is NOT flagged).
+    for n in nodes:
+        _s = (str(n["id"]) + " " + str(n["agent"])).lower()
+        if re.search(r"qa|lint|check|verif|valid", _s) and re.search(r"critic|review|judge|arbiter", _s):
+            r.warn("QA_TOKEN_TRAP",
+                   "node '%s' (agent '%s') name carries BOTH a qa-scan token and a critic token — the classifier "
+                   "resolves it to qa-scan/haiku (qa wins), under-tiering an intended critic; drop the "
+                   "qa/check/verify token from the name (e.g. 'integration-critic')" % (n["id"], n["agent"]), n["id"])
 
     return r
 

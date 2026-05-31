@@ -51,7 +51,7 @@ python3 "$TR"/validate_harness.py     <TARGET>                            # IMPL
 - **R4 모델티어** — 역할 → `model-tier-policy.js` role-class → tier. `n_agents ≤ MAX_FANOUT(5)`.
 
 ### STAGE 2 — PLANNING (계약 저작 + 단일 사람 승인)
-- **P1 graph.json 저작 (단일 writer)** — **이 스킬만이 graph.json을 쓴다.** `graph.schema.json` 준수. 노드별: `model, decision_mechanism, mechanism_params, output_schema, write_paths` + **`skill_authoring{mode:inline|skill, reason}`**(하이브리드, locked-5) + `review{agent}`. top: `execution_mode`(team/hybrid), `topology`(7), `budget`.
+- **P1 graph.json 저작 (단일 진실원천)** — graph.json은 하네스의 **단일 진실원천(SoT)**이며 이 스킬이 저작한다(emit가 `graph.lock`으로 provenance를 stamp → 사후 손편집은 `GRAPH_PROVENANCE` warn). validate가 내부 일관성을 강제한다. `graph.schema.json` 준수. 노드별: `model, decision_mechanism, mechanism_params, output_schema, write_paths` + **`skill_authoring{mode:inline|skill, reason}`**(하이브리드, locked-5) + `review{agent}`. top: `execution_mode`(team/hybrid), `topology`(7), `budget`.
 - **P2 schema 저작** — node.output_schema → `schemas/<name>.json`(draft 2020-12, bare-filename $id, additionalProperties:false).
 - **P3 팀 아키텍처 확정** — topology + execution_mode + 팀 구성/역할 확정 (all-6 floor 충족).
 - **P4 비용밴드** — `warrant.py --graph` (team-aware).

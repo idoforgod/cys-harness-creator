@@ -71,6 +71,65 @@ def _tools_for(node):
     return _ROLE_TOOLS.get(_role_class_of(node), "Read, Glob, Grep")
 
 
+# P2-B (audit): per-role-class working principles so the emitted agent body is a real, reusable persona
+# (idoforgod's who/how deliverable) rather than a 2-line stub.
+_ROLE_PRINCIPLES = {
+    "gather": "다양한 출처를 광범위 검색·수집한다. 1차 출처 우선, 각 주장에 source_id를 붙이고 미검증 주장은 confidence를 낮춘다. 누락보다 과수집 후 정제.",
+    "extract": "입력에서 구조화된 사실만 추출한다. 원문에 없는 내용 생성 금지; 추출 불가 항목은 명시적으로 표기한다.",
+    "format": "검증된 콘텐츠를 지정 스키마/형식으로 직렬화한다. 내용 변경 없이 구조만 다루고, 모든 사실의 인용을 보존한다.",
+    "qa-scan": "산출물을 계약(schema·inputs·write_paths) 대비 점검한다. 존재 확인이 아니라 인터페이스 교차비교; FAIL은 증거와 함께 보고한다.",
+    "voter": "독립적으로 판단해 투표한다. 다른 투표자를 참조하지 않고 자기 근거로만; quorum 집계는 오케스트레이터가 한다.",
+    "debater": "입장을 근거로 변호하고 상대를 반박한다. 라운드마다 새 증거를 제시하며, 최종 판정은 judge에게 맡긴다.",
+    "reviser": "비평을 받아 결함을 수정한다. 모든 지적을 반영하거나 반박 근거를 남기고, approved 전까지 반복한다.",
+    "synthesis": "검증된 입력을 통합해 최종 산출물을 만든다. 상충은 삭제가 아니라 출처를 병기하고, 모든 사실에 인용을 단다.",
+    "judge": "후보들을 기준 대비 블라인드·일관 평가해 승자를 정하고 근거를 명시한다.",
+    "critic": "적대적으로 결함을 찾는다. 통과가 아니라 반증을 시도하며, 최소 1개 이슈 또는 명시적 approved를 낸다.",
+    "architecture": "구조·계획을 설계한다. 트레이드오프를 명시하고 결정 근거를 남긴다.",
+}
+
+
+def _agent_body(graph, n):
+    """Render a full per-agent body from graph node fields: role + principles + exact I/O protocol +
+    mechanism + error handling + team-comms (team mode) + L2 (review nodes). Used only when no hand-written
+    body exists (a hand-authored agent .md body is always preserved)."""
+    rc, nid, mech = _role_class_of(n), n["id"], n["decision_mechanism"]
+    mp = n.get("mechanism_params", {})
+    ins = ", ".join(n.get("inputs") or []) or "(직전 노드 출력)"
+    outs = ", ".join(n.get("outputs") or []) or "(orchestrator로 반환)"
+    wps = ", ".join(n.get("write_paths") or []) or "(없음)"
+    p = ["## 핵심 역할",
+         "%s 하네스의 '%s' 노드(%s-class, mechanism=%s). 오케스트레이터가 Agent 도구로 spawn하며, 직전 단계 출력을 받아 자기 단계를 수행한다."
+         % (graph["harness_name"], nid, rc, mech),
+         "", "## 작업 원칙", _ROLE_PRINCIPLES.get(rc, "노드 목표를 달성하는 작업을 수행한다."),
+         "", "## 입력/출력 프로토콜",
+         "- **입력**: %s" % ins,
+         "- **출력**: %s — `%s` 스키마를 준수하는 JSON만 반환한다(스키마 외 텍스트 금지)." % (outs, n.get("output_schema") or "(없음)"),
+         "- **쓰기 경로**: %s — 이 경로 밖에 쓰지 않는다(write_path 단독 소유). 도구는 frontmatter allowlist로 제한(최소권한)." % wps,
+         "", "## 에러 핸들링",
+         "- 실패 시 %d회 재시도, 소진 시 on_exhaust=%s. 상충 데이터는 삭제하지 말고 출처를 병기하며, 미검증은 명시한다."
+         % (n.get("retries", 0), n.get("on_exhaust", "escalate"))]
+    if mech == "majority-vote":
+        p += ["", "## 메커니즘: majority-vote",
+              "독립 투표자(%d명, quorum %s)로 동작한다 — 다른 투표를 보지 않고 자기 근거로 판단한다."
+              % (mp.get("n", 3), mp.get("quorum", (mp.get("n", 3) // 2) + 1))]
+    elif mech == "debate-with-judge":
+        p += ["", "## 메커니즘: debate-with-judge",
+              "%d라운드 토론 후 judge(%s)가 판정한다." % (mp.get("max_rounds", 2), mp.get("judge", "opus"))]
+    elif mech == "reflect-then-revise":
+        p += ["", "## 메커니즘: reflect-then-revise",
+              "critic(%s)의 적대적 비평을 받아 수정한다(max_rounds=%d, approved 시 조기종료)."
+              % (mp.get("critic", "opus"), mp.get("max_rounds", 2))]
+    if graph.get("execution_mode") in ("team", "hybrid"):
+        p += ["", "## 팀 통신 프로토콜 (team 모드)",
+              "TeamCreate 멤버로 동작한다. 상충·누락 발견 시 관련 팀원에게 `SendMessage`로 직접 공유(리더 우회 peer-to-peer)하고, "
+              "자기 task를 task list에서 claim하며, 완료 시 산출물을 write_path에 flush한다."]
+    if n.get("review"):
+        p += ["", "## L2 적대적 리뷰",
+              "이 노드 산출 후 별도 `Agent(subagent_type=\"%s\")`가 적대적 리뷰를 수행한다(최소 1개 이슈 또는 approved). "
+              "리뷰 통과 전 다음 단계로 진행하지 않는다." % n["review"]["agent"]]
+    return "\n".join(p) + "\n"
+
+
 def _write_agent_files(graph, harness_dir, in_project=False):
     """Ensure each node.agent has .claude/agents/<agent>.md with RUNTIME-bound frontmatter
     (model=node.model, tools allowlist, maxTurns). Preserves any existing hand-written body
@@ -100,8 +159,7 @@ def _write_agent_files(graph, harness_dir, in_project=False):
         tools = existing_fm.get("tools") or _tools_for(n)
         maxturns = existing_fm.get("maxTurns") or str(_DEFAULT_MAXTURNS)
         if not body.strip():
-            body = ("핵심 역할: %s 노드의 작업을 수행한다.\n\n작업 원칙: 입력(직전 노드 출력)을 받아 "
-                    "output_schema에 맞는 JSON만 반환한다. 도구는 frontmatter allowlist로 제한된다.\n" % n["id"])
+            body = _agent_body(graph, n)
         marker = ("cys_emitted: \"%s\"\n" % graph["harness_name"]) if in_project else ""
         fm = ("---\n"
               "name: %s\n"
@@ -459,6 +517,14 @@ def emit_orchestrator(graph, harness_dir, in_project=False):
     hm_path = os.path.join(harness_dir, ".harness", "harness.md") if in_project \
         else os.path.join(harness_dir, "harness.md")
     atomic_write(hm_path, _harness_md(graph, order))
+    # 5) provenance lock (P2-C/audit): stamp sha256 of graph.json so validate can detect a hand-tamper
+    #    AFTER emit (the 'single-writer' contract was otherwise unenforced — an edited graph validated 0/0).
+    import hashlib
+    gbytes = open(os.path.join(harness_dir, ".harness", "graph.json"), "rb").read()
+    atomic_write(os.path.join(harness_dir, ".harness", "graph.lock"),
+                 json.dumps({"sha256": hashlib.sha256(gbytes).hexdigest(),
+                             "note": "emit_orchestrator stamp of graph.json; validate warns (GRAPH_PROVENANCE) "
+                                     "if graph.json changed after emit — re-emit to re-bless"}, indent=2) + "\n")
     return errs
 
 

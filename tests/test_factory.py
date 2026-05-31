@@ -380,14 +380,46 @@ class TestEightUseCases(unittest.TestCase):
         ("Marketing Campaign", "producer-reviewer", "team"),
     ]
 
+    @staticmethod
+    def _node(i, agent, model, review=False):
+        n = {"id": i, "agent": agent, "model": model, "decision_mechanism": "single",
+             "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/%s.json" % i],
+             "write_paths": ["_workspace/%s/" % i], "output_schema": "", "retries": 0,
+             "on_exhaust": "proceed-with-gap", "max_rounds": 1}
+        if review:
+            n["review"] = {"agent": "reviewer"}
+        return n
+
     def _graph(self, topology, exec_mode):
+        # P2-A: realistic per-topology STRUCTURE (not one trivial 1-node graph for every topology).
+        nd = self._node
+        if topology == "fan-out-fan-in":          # >=2 parallel producers -> 1 sink
+            nodes = [nd("p1", "scout-a", "haiku"), nd("p2", "scout-b", "haiku"), nd("merge", "synthesizer", "opus")]
+            edges = [{"from": "p1", "to": "merge"}, {"from": "p2", "to": "merge"}]
+        elif topology == "hierarchical":          # coordinator delegates to >=2 workers (2 levels)
+            nodes = [nd("coord", "coordinator", "opus"), nd("w1", "worker-a", "sonnet"), nd("w2", "worker-b", "sonnet")]
+            edges = [{"from": "coord", "to": "w1"}, {"from": "coord", "to": "w2"}]
+        elif topology == "producer-reviewer":     # producer reviewed by L2
+            nodes = [nd("make", "producer", "opus", review=True), nd("check", "checker", "sonnet")]
+            edges = [{"from": "make", "to": "check"}]
+        else:                                       # pipeline / dispatch / supervisor / expert-pool
+            nodes = [nd("start", "starter", "sonnet"), nd("finish", "finisher", "sonnet")]
+            edges = [{"from": "start", "to": "finish"}]
         return {"schema_version": "0.1", "harness_name": "use-case", "harness_version": "0.1.0",
                 "execution_mode": exec_mode, "topology": topology,
-                "budget": {"total_tokens": 1000, "approval_required": True},
-                "nodes": [{"id": "work", "agent": "worker", "model": "sonnet", "decision_mechanism": "single",
-                           "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/work.json"],
-                           "write_paths": ["_workspace/work/"], "output_schema": "", "retries": 0,
-                           "on_exhaust": "proceed-with-gap", "max_rounds": 1}], "edges": []}
+                "budget": {"total_tokens": 1000, "approval_required": True}, "nodes": nodes, "edges": edges}
+
+    def test_one_node_topology_is_rejected(self):
+        # P2-A: a trivial 1-node graph must NOT 'conform' to a structured topology
+        g = {"schema_version": "0.1", "harness_name": "thin", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "fan-out-fan-in",
+             "budget": {"total_tokens": 1000, "approval_required": True},
+             "nodes": [self._node("only", "worker", "sonnet")], "edges": []}
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".harness"))
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            codes = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "error"}
+            self.assertIn("TOPOLOGY_STRUCTURE", codes, "1-node fan-out-fan-in must fail the structure floor")
 
     def test_all_eight_use_cases_conform(self):
         try:
@@ -1057,6 +1089,61 @@ class TestProducerReviewerReview(unittest.TestCase):
 
     def test_producer_reviewer_with_review_ok(self):
         self.assertNotIn("PRODUCER_REVIEWER_REVIEW", self._codes(self._g(True)))
+
+
+class TestAuditP2(unittest.TestCase):
+    """P2 audit deepening: richer agent bodies (B), graph provenance (C), qa-token-trap guard (G)."""
+
+    def _emit_one(self, td, node):
+        g = {"schema_version": "0.1", "harness_name": "p2", "harness_version": "0.1.0",
+             "execution_mode": "team", "topology": "pipeline",
+             "budget": {"total_tokens": 1000, "approval_required": True}, "nodes": [node], "edges": []}
+        os.makedirs(os.path.join(td, ".harness")); os.makedirs(os.path.join(td, "schemas"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+        json.dump({"type": "object"}, open(os.path.join(td, "schemas", "w.json"), "w"))
+        emit_orchestrator.emit_orchestrator(g, td)
+        return g
+
+    def test_p2b_emitted_agent_body_is_rich(self):
+        node = {"id": "gather", "agent": "p2-gather", "model": "haiku", "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": ["_workspace/00/q.json"], "outputs": ["_workspace/g.json"],
+                "write_paths": ["_workspace/g/"], "output_schema": "schemas/w.json", "retries": 1,
+                "on_exhaust": "proceed-with-gap", "max_rounds": 1}
+        with tempfile.TemporaryDirectory() as td:
+            self._emit_one(td, node)
+            body = open(os.path.join(td, ".claude", "agents", "p2-gather.md"), encoding="utf-8").read()
+            for sec in ("## 핵심 역할", "## 작업 원칙", "## 입력/출력 프로토콜", "## 에러 핸들링", "## 팀 통신 프로토콜"):
+                self.assertIn(sec, body, "emitted agent body must carry the %s section" % sec)
+            self.assertIn("_workspace/00/q.json", body, "exact input path in the I/O protocol")
+
+    def test_p2c_graph_provenance_detects_tamper(self):
+        node = {"id": "work", "agent": "p2-w", "model": "sonnet", "decision_mechanism": "single",
+                "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/w.json"],
+                "write_paths": ["_workspace/w/"], "output_schema": "schemas/w.json", "retries": 0,
+                "on_exhaust": "escalate", "max_rounds": 1}
+        with tempfile.TemporaryDirectory() as td:
+            g = self._emit_one(td, node)
+            self.assertNotIn("GRAPH_PROVENANCE", {i["code"] for i in validate_harness.validate(td).items})
+            g["budget"]["total_tokens"] = 999999999                              # hand-tamper after emit
+            json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+            warns = {i["code"] for i in validate_harness.validate(td).items if i["level"] == "warn"}
+            self.assertIn("GRAPH_PROVENANCE", warns, "a post-emit graph edit must warn (provenance)")
+
+    def test_p2g_qa_token_trap_precise(self):
+        def codes(idn, agent, mech="single"):
+            with tempfile.TemporaryDirectory() as td:
+                os.makedirs(os.path.join(td, ".harness"))
+                g = {"schema_version": "0.1", "harness_name": "qt", "harness_version": "0.1.0",
+                     "execution_mode": "team", "topology": "pipeline",
+                     "budget": {"total_tokens": 1000, "approval_required": True},
+                     "nodes": [{"id": idn, "agent": agent, "model": "haiku", "decision_mechanism": mech,
+                                "mechanism_params": {}, "inputs": [], "outputs": ["_workspace/q.json"],
+                                "write_paths": ["_workspace/q/"], "output_schema": "", "retries": 0,
+                                "on_exhaust": "escalate", "max_rounds": 1}], "edges": []}
+                json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w"))
+                return {i["code"] for i in validate_harness.validate(td).items}
+        self.assertIn("QA_TOKEN_TRAP", codes("qa_coherence", "qa-coherence-reviewer"), "qa+critic name trapped")
+        self.assertNotIn("QA_TOKEN_TRAP", codes("verify", "verifier", "reflect-then-revise"), "plain verifier not flagged")
 
 
 class TestValidateRobustness(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 > **이 문서가 다른 모든 reference의 aspirational 서술에 우선한다.** reference가 무엇을 설명하든, 실제로 emit/validate에 구현됐는지는 여기로 확정한다. (출처: `emit_orchestrator.py`·`emit_domain_skill.py`·`audit_harness.py`·`evolve_harness.py`·`eval_topology.py`·`inherit_genome.py`·`validate_harness.py`·`templates/hooks/`·`tests/test_factory.py` 실측. 설계 전모: `design/STRATEGY-AND-DESIGN.md`.)
 >
-> **현 상태: 72 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치·lift 배선·h2h 보강 완료 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4 보강 완료.**
+> **현 상태: 76 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치·lift 배선·h2h 보강 완료 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4·P2(A/B/C/G) 보강 완료.**
 
 ## 🔧 적대적 전수감사 보강 (audit wkm8lt82v → reinforcement)
 7-dimension 적대적 audit(A1/A2/parity/DNA/factory-workflow/contract/robustness)에서 18 confirmed 결함 발견(verdict PARTIAL) → 수정:
@@ -14,8 +14,12 @@
 - **P1-2** L2 리뷰 예제 0노드 → deep-research/design-decision에 `review` + `PRODUCER_REVIEWER_REVIEW` 코드.
 - **P1-3** L1/L1.5/L2 fire-on-presence → **L1 필수(fail-closed)**: verification log 없으면 exit-2(L0·L1·budget 필수, L1.5·L2 fire-on-presence).
 - **P1-4** 4-스테이지 워크플로 미강제 → e2e self-test(predicates→warrant→audit→emit→validate) + `warrant --graph`가 `.harness/warrant.json` 기록 + opt-in `BUILD_GATES` 정책(기본 off; warn/error 시 warrant.json·audit.json·APPROVED 필수).
-- 신규 validate 코드: `PROMPT_RUNNER_ABSENT`·`GRAPH_SCHEMA_DEGRADED`·`PRODUCER_REVIEWER_REVIEW`·`BUILD_GATES_SKIPPED`.
-- **남은 audit 백로그(P2, 미구현)**: 예제 현실성(1-node가 모든 topology conform)·agent 본문 빈약·graph provenance·i18n·8 use case run-level·RLM Tier-II 코드백업(현 prose). audit 전체: workflow output wkm8lt82v.
+- **P2-A** topology↔구조 미결합(1-node가 fan-out-fan-in/hierarchical에 conform) → `TOPOLOGY_STRUCTURE`(fan-out-fan-in=≥2 producer→sink, hierarchical=≥3노드) + TestEightUseCases가 토폴로지별 현실 구조 사용.
+- **P2-B** emit된 agent 본문이 2줄 stub → graph 필드에서 **rich body 생성**(핵심역할·작업원칙(role-class별)·I/O 프로토콜·에러핸들링·팀통신·L2). 손작성 본문은 보존(fallback만 교체).
+- **P2-C** graph.json single-writer 미강제(손편집 0/0 통과) → emit가 `.harness/graph.lock`(sha256) stamp + `GRAPH_PROVENANCE` warn(사후 변경 감지) + SKILL P1 주장 정직화(SoT).
+- **P2-G** qa-token-trap(이름에 qa+critic 토큰 → qa-scan/haiku 강등) → `QA_TOKEN_TRAP` 정밀 warn(verifier 같은 정상 노드는 미발동).
+- 신규 validate 코드(총): `PROMPT_RUNNER_ABSENT`·`GRAPH_SCHEMA_DEGRADED`·`PRODUCER_REVIEWER_REVIEW`·`BUILD_GATES_SKIPPED`·`TOPOLOGY_STRUCTURE`·`GRAPH_PROVENANCE`·`QA_TOKEN_TRAP`. **76 factory tests.**
+- **의도적 미구현(결함 아님, 정직 기록)**: (D) i18n — 팩토리 문서 KO 전용은 scope 선택; 산출 하네스는 게놈 `@translator`+glossary로 번역 *가능*. (E) 8 use case **run-level** — 강제 대상은 build-level conformance, run-level은 별도 quota-gated h2h 레인(n=5 +12.5pp/0pp INCONCLUSIVE 측정 완료). (F) RLM Tier-II recall/record가 prose인 것은 **A1 준수**(회상·판단은 프리미티브/agent의 도메인 작업; Python으로 코드백업하면 A1 위반 — 시드·인덱스·파싱만 코드). 예제 deep-research를 실제 fan-out으로 전환은 별도 enhancement. audit 전체: workflow output wkm8lt82v.
 
 ## ✅ 구현·검증 완료 (M0–M8)
 

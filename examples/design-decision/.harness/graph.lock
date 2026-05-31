@@ -1,0 +1,4 @@
+{
+  "sha256": "1189caa7ab4bed8c00ac9ae62b257383e8e1b7c4ccb2455fa97dcaea2bbe7c73",
+  "note": "emit_orchestrator stamp of graph.json; validate warns (GRAPH_PROVENANCE) if graph.json changed after emit \u2014 re-emit to re-bless"
+}
