@@ -104,26 +104,23 @@ your own root files (`CLAUDE.md`, `AGENTS.md`, `README.md`) are PRESERVED, not r
 Trigger the `<name>-orchestrator` skill for this harness's domain work; `python3 .../validate_harness.py .` is the build gate.
 """
 
+# Default RUNTIME.json for a bare `inherit_genome.py <dir>` (no override). emit_orchestrator ALWAYS passes
+# an orchestrator-canonical manifest with the real harness name; this default must NOT advertise the retired
+# Mode-A workflow.js or the prompt-runner subprocess as runnable runtimes (audit: standalone CLI was dishonest).
 _RUNTIME_MANIFEST = {
     "schema_version": "0.1",
-    "canonical_runtime": "cys-mode-a",
+    "canonical_runtime": "orchestrator-skill",
     "runtimes": [
-        {"name": "cys-mode-a", "role": "canonical", "entrypoint": ".harness/workflow.js",
-         "driver": "Workflow tool (agent/parallel/pipeline)",
-         "kind": "deterministic, tool-driven, immutable, budget-gated, resume-safe",
-         "wired_to": "graph.json (this harness's contract)",
-         "use_when": "default — ALL of this harness's defined work; graph.json -> workflow.js is THE path"},
-        {"name": "awf-prompt-runner", "role": "inherited-alternative", "entrypoint": "prompt-runner/run.py",
-         "driver": "claude -p --resume (CLI batch sessions)",
-         "kind": "human-driven, stateful, rate-limit-resilient, 100+ step batch",
-         "wired_to": "NOT wired to this harness's graph.json — general AWF batch executor, inherited as capability",
-         "use_when": "ad-hoc long / human-in-loop / rate-limit-exposed batch tasks; NOT the harness default"},
+        {"name": "orchestrator-skill", "role": "canonical",
+         "entrypoint": ".claude/skills/<harness>-orchestrator/SKILL.md",
+         "driver": "Claude Code primitives (Agent / TeamCreate / SendMessage / TaskCreate), live host session",
+         "kind": "prose-driven, genome-active (hooks/L0-L2/SOT fire), graph.json-contracted",
+         "wired_to": "graph.json (this harness's contract) via emit_orchestrator",
+         "use_when": "default — ALL of this harness's work runs as a live `claude` session driven by this skill"},
     ],
-    "routing_rule": "Run this harness via its canonical runtime (.harness/workflow.js). prompt-runner is "
-                    "inherited AWF capability for long human-driven batch work, NOT a second way to run this "
-                    "harness's graph. Never run the same task through both.",
-    "no_conflict_note": "The two runtimes do not call each other and are not both invoked for the same task; "
-                        "prompt-runner is not bound to graph.json.",
+    "routing_rule": "Run this harness by opening a `claude` session in its dir and triggering the "
+                    "<harness>-orchestrator skill — the ONLY execution runtime. The retired Mode-A workflow.js "
+                    "and the inherited prompt-runner are NOT execution paths for a produced harness.",
 }
 
 

@@ -99,7 +99,13 @@ def validate(harness_dir):
     if not os.path.isfile(gpath):
         r.err("GRAPH_MISSING", "no .harness/graph.json", gpath)
         return r
-    graph = json.load(open(gpath))
+    try:                                              # audit: a malformed/empty graph.json must FAIL the gate,
+        graph = json.load(open(gpath, encoding="utf-8"))   # not crash it with an uncaught traceback
+        if not isinstance(graph, dict):
+            raise ValueError("graph.json is not a JSON object")
+    except (ValueError, OSError) as e:
+        r.err("GRAPH_SCHEMA", "graph.json is not readable/valid JSON: %s" % e, gpath)
+        return r
 
     # install_mode marker (P1.2/B2): in-project installs preserve the HOST's root files and relocate the
     # genome constitution + the harness README/harness.md under .harness/, so the root-ownership checks
@@ -125,6 +131,10 @@ def validate(harness_dir):
         except jsonschema.ValidationError as e:
             r.err("GRAPH_SCHEMA", "graph.json invalid: %s" % e.message, "/".join(str(p) for p in e.path))
     except ImportError:
+        # audit: don't SILENTLY degrade to a 2-field check — warn that full schema enforcement is off.
+        r.warn("GRAPH_SCHEMA_DEGRADED",
+               "jsonschema not installed — full graph.schema.json validation skipped (structural check only); "
+               "pip install jsonschema to restore the full contract gate", gpath)
         if graph.get("schema_version") != "0.1" or not graph.get("nodes"):
             r.err("GRAPH_SCHEMA", "structural check failed (jsonschema not installed)", gpath)
 
@@ -212,6 +222,14 @@ def validate(harness_dir):
                           "node '%s' skill '%s' was lift-measured but REFUSED (decision=%r, lift=%s) — inline it or "
                           "improve it; do not ship a skill that does not beat the baseline"
                           % (nid, sn, v.get("decision"), v.get("lift")), nid)
+                else:
+                    # audit: trust the MATH, not a hand-written 'decision' label — a verdict claiming register
+                    # with lift < threshold (or non-numeric lift/threshold) is inconsistent/forged and must not pass.
+                    lift, thr = v.get("lift"), v.get("threshold")
+                    if not isinstance(lift, (int, float)) or not isinstance(thr, (int, float)) or lift < thr:
+                        r.err("LIFT_REFUSED",
+                              "node '%s' skill '%s' verdict says register but lift=%s < threshold=%s "
+                              "(inconsistent/hand-written) — re-run lift_gate.py score" % (nid, sn, lift, thr), nid)
         # V1 model present/valid
         if not n.get("model") or n["model"] not in VALID_TIERS:
             r.err("TIER_MISSING", "node '%s'.model empty/invalid (default would be %s)"

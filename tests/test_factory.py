@@ -809,6 +809,16 @@ class TestLiftWiring(unittest.TestCase):
             self.assertNotIn("LIFT_REFUSED", codes, "a registered skill passes the lift gate")
             self.assertNotIn("LIFT_UNMEASURED", codes)
 
+    def test_forged_register_verdict_refused(self):
+        # audit: the gate must trust the MATH — a hand-written {"decision":"register"} with lift<threshold
+        # (or non-numeric lift) must NOT pass LIFT_REFUSED.
+        with tempfile.TemporaryDirectory() as td:
+            self._skill_harness(td, verdict={"decision": "register", "lift": 0.01, "threshold": 0.2})
+            self.assertEqual(self._codes(td).get("LIFT_REFUSED"), "error", "forged register (lift<thr) must fail")
+        with tempfile.TemporaryDirectory() as td:
+            self._skill_harness(td, verdict={"decision": "register", "lift": "bogus", "threshold": 0.2})
+            self.assertEqual(self._codes(td).get("LIFT_REFUSED"), "error", "non-numeric lift must fail")
+
     def test_corrupt_or_nonobject_verdict_errors_not_crashes(self):
         # adversarial finding: a valid-JSON-but-non-object verdict ([]/"x"/123/true/null) or truncated JSON must
         # produce a clean LIFT_REFUSED, never crash validate on v.get()
@@ -930,6 +940,20 @@ class TestEmittedHarnessDNAFires(unittest.TestCase):
             sk = open(os.path.join(td, ".claude", "skills", "dnafire-orchestrator", "SKILL.md"), encoding="utf-8").read()
             for p in ("TeamCreate(", "TaskCreate(", "SendMessage"):
                 self.assertIn(p, sk, "orchestrator must drive the team primitive %s" % p)
+
+
+class TestValidateRobustness(unittest.TestCase):
+    """audit: the build gate must FAIL gracefully on adversarial input, not crash with a traceback."""
+
+    def test_malformed_and_empty_graph_json_do_not_crash(self):
+        for raw in ("{ not valid json ]", "", "[]", "null", "42"):
+            with tempfile.TemporaryDirectory() as td:
+                os.makedirs(os.path.join(td, ".harness"))
+                open(os.path.join(td, ".harness", "graph.json"), "w").write(raw)
+                rep = validate_harness.validate(td)   # must not raise
+                errs = [i for i in rep.items if i["level"] == "error"]
+                self.assertTrue(any(e["code"] == "GRAPH_SCHEMA" or e["code"] == "GRAPH_MISSING" for e in errs),
+                                "malformed graph.json %r must produce a clean GRAPH_SCHEMA error" % raw)
 
 
 class TestPromptRunnerAbsent(unittest.TestCase):
