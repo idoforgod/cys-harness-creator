@@ -1,0 +1,39 @@
+{
+  "_note": "Factory self-hosting of the lint/precommit auto-correction loop. The factory's own first-class tools are linted by the SAME hooks it transplants into emitted harnesses (templates/hooks/), referenced directly so there is no second copy to drift. Gated by a `.lint-guard` toggle in the repo root (gradual rollout / kill-switch); ruff.toml defines scope+rules.",
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if test -f \"$CLAUDE_PROJECT_DIR\"/templates/hooks/lint_guard.py; then python3 \"$CLAUDE_PROJECT_DIR\"/templates/hooks/lint_guard.py; fi",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if test -f \"$CLAUDE_PROJECT_DIR\"/templates/hooks/spell_guard.py; then python3 \"$CLAUDE_PROJECT_DIR\"/templates/hooks/spell_guard.py; fi",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if test -f \"$CLAUDE_PROJECT_DIR\"/templates/hooks/precommit_gate.py; then python3 \"$CLAUDE_PROJECT_DIR\"/templates/hooks/precommit_gate.py; fi",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

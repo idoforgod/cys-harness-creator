@@ -1,0 +1,27 @@
+# CYS Harness Creator — Python lint config (Phase 0, gradual rollout).
+#
+# Scope = the FACTORY's own first-class tools (root *.py + lib/ + templates/hooks/ + tests/).
+# The vendored AgenticWorkflow genome/ is EXCLUDED on purpose: it is upstream code, and
+# linting/auto-fixing it here would break sync with the parent repo (its F821/F401 noise
+# belongs to a separate upstream track). examples/ are emitted, regenerable artifacts.
+
+exclude = [
+    "genome",
+    "examples",
+    "_workspace",
+    "_measurement",
+    "design",
+    "__pycache__",
+    ".pytest_cache",
+]
+
+[lint]
+# F  (Pyflakes)    — real bugs: undefined names, unused imports/vars, broken f-strings.
+# E4 (imports)     — multiple-imports-on-one-line, etc.
+# E7 (statements)  — comparison/lambda/statement defects.
+# E9 (syntax)      — syntax errors.
+select = ["F", "E4", "E7", "E9"]
+
+# E702 (multiple statements separated by ';') is an INTENTIONAL CYS compaction style used
+# throughout the emit tools and tests — not a defect. Excluded so the gate stays signal, not noise.
+ignore = ["E702"]

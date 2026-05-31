@@ -2,7 +2,7 @@
 
 > **이 문서가 다른 모든 reference의 aspirational 서술에 우선한다.** reference가 무엇을 설명하든, 실제로 emit/validate에 구현됐는지는 여기로 확정한다. (출처: `emit_orchestrator.py`·`emit_domain_skill.py`·`audit_harness.py`·`evolve_harness.py`·`eval_topology.py`·`inherit_genome.py`·`validate_harness.py`·`templates/hooks/`·`tests/test_factory.py` 실측. 설계 전모: `design/STRATEGY-AND-DESIGN.md`.)
 >
-> **현 상태: 76 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치·lift 배선·h2h 보강 완료 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4·P2(A/B/C/G) 보강 완료.**
+> **현 상태: 103 factory tests green, 4 예제 validate 0/0, idoforgod 8 use case 전부 conform, in-project 오버레이 설치·lift 배선·h2h 보강 완료 + 7-dim 적대적 전수감사(18 confirmed) 후 P0×3·robustness×4·P1×4·P2(A/B/C/G) 보강 완료 + 자동 교정 루프(린터+맞춤법+프리커밋, 팩토리 자기적용·게놈 전수) 추가.**
 
 ## 🔧 적대적 전수감사 보강 (audit wkm8lt82v → reinforcement)
 7-dimension 적대적 audit(A1/A2/parity/DNA/factory-workflow/contract/robustness)에서 18 confirmed 결함 발견(verdict PARTIAL) → 수정:
@@ -85,6 +85,16 @@
 - **NOT CYS-WINS** — 날조하지 않는다. 두 번째 정직 데이터포인트(deep-research +12.5pp, verification-heavy 0pp 모두 INCONCLUSIVE).
 - **P1.4 하드닝 실전 검증**: `n_dropped=0`(5/5 valid) — 이전 7/12 flake 패턴이 재시도+drop으로 해소됨.
 - **구조적 결론**: 현대 opus single-pass가 객관적 scorecard에서 이미 천장(8/8)이라 하네스가 **마진으로 이기는 것은 구조적으로 불가**. 더 많은 도메인을 뒤져 ≥15pp를 낚는 것은 **벤치마크 게이밍**(+37.5pp 교훈)이므로 중단. 하네스의 가치는 scorecard 승리가 아니라 **parity(실제 목표) + 결정론적 인프라**(DNA 발화·비용거버넌스·머신체크 계약 — scorecard가 못 잡는 보장)에 있다. **parity 목표는 충족.**
+
+### 자동 교정 루프 — 린터 + 맞춤법 + 프리커밋 (팩토리 자기적용 + 게놈 전수) ✅
+PostToolUse/PreToolUse hook의 `exit-2 + stderr` 자가수정 메커니즘 위에 3종 가드를 추가(`templates/hooks/`):
+- **`lint_guard.py`** (PostToolUse Edit|Write) — 방금 쓴 `.py`를 ruff로 검사. 기계적 위반은 `--fix` **자동 적용**(사람 개입 0), 남은 의미 위반(F821 등)은 **exit-2 + stderr**로 Claude 자가수정 유도. vendored 트리(`genome/`·`.harness/genome/`·`.claude/hooks/scripts/`·`examples/`)는 스코프 제외.
+- **`spell_guard.py`** (PostToolUse Edit|Write) — `.md`/`.txt`의 **고신뢰 한국어 오타**(`됬`→`됐`·`역활`→`역할` 등 11종, 거의 항상 틀린 형태만)를 exit-2 차단. 인라인/펜스 코드 안의 인용은 제외(오타를 *논하는* 문서 false-positive 방지). 문맥 의존 맞춤법은 Claude(A1) — 사전은 보수적.
+- **`precommit_gate.py`** (PreToolUse Bash) — `git commit`을 인터셉트(서브커맨드 정밀 판정, 전역옵션 스킵)해 ruff(스코프)+테스트 통과 못하면 **exit-2 "잠깐, 이것부터"** — 빨간 트리가 히스토리에 못 들어감.
+- **A1 준수**: ruff·테스트러너는 결정론 가드레일(차단/측정), `--fix`는 기계적 안전변환, *의미* 수정은 프리미티브(Claude).
+- **점진 도입**: `.lint-guard` 토글 파일로 on/off(기본 off — 산출 하네스는 운영자가 켬, 팩토리는 가동). 룰선택은 `ruff.toml`(`select=F,E4,E7,E9`/`ignore=E702`=CYS 압축 스타일). 안전제일: ruff 부재·토글 off·스코프 외·내부예외 → exit-0(절대 차단 안 함).
+- **배선**: 팩토리는 루트 `.claude/settings.json`이 `templates/hooks/`를 직접 참조(dogfood, 복사본 0). 산출 하네스는 `inherit_genome._CYS_HOOKS`+`_merge_settings`+`_install_ruff_config`(harness-scoped `ruff.toml`, 호스트 ruff 설정은 in-project 보존)로 전수. emit→전수 end-to-end 검증.
+- **Phase 0 정리**: 팩토리 1급 도구(루트·lib·templates/hooks·tests) ruff clean(genome 제외 시 위반 37→0; F821 94개는 전부 vendored genome `_context_*.py`라 별도 상류 트랙). **27 신규 테스트**(lint 8·precommit 6·inheritance 6·spell 7).
 
 ## ❌ 폐기된 규칙 — 더 이상 적용 안 함
 - **NO_COMMANDS** 폐기(게놈 commands 정상; 새 도메인 커맨드는 직접 안 만듦). **"모든 에이전트 opus"** → role-tier 정책. **"team이 기본 / Mode-A(workflow)가 기본"** → 둘 다 폐기: **workflow 은퇴**, 빌드 하네스는 **all-6(team/hybrid)**.

@@ -1,0 +1,22 @@
+# Emitted-harness lint config — transplanted by inherit_genome.py (self-contained always;
+# in-project only when the host has none, so a host's own ruff config is never clobbered).
+#
+# Scope = the harness operator's OWN code. Vendored/transplanted trees are excluded: the
+# AgenticWorkflow genome and its hook scripts carry their own upstream lint debt, and .harness/
+# is the machine-checked contract, not hand-authored source.
+
+exclude = [
+    "genome",
+    ".harness/genome",
+    ".claude/hooks/scripts",
+    "examples",
+    "__pycache__",
+    ".pytest_cache",
+    "_workspace",
+]
+
+[lint]
+# F (Pyflakes) + E4/E7/E9 (pycodestyle): real bugs and import/statement/syntax defects.
+select = ["F", "E4", "E7", "E9"]
+# E702 (statements separated by ';') is an intentional CYS compaction style, not a defect.
+ignore = ["E702"]

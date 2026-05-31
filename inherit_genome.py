@@ -61,7 +61,10 @@ _CYS_LOG_HOOK = "cys_log_tokens.py"
 # M0d adds the three that make DNA FIRE instead of lie dormant: spawn_counter (increments the budget
 # ceiling counter), sot_init (instantiates the SOT), qa_gate_runner (fires L0-L2 via gate_or_block).
 _CYS_HOOKS = ["cys_log_tokens.py", "gate_or_block.py", "budget_block.py",
-              "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
+              "spawn_counter.py", "sot_init.py", "qa_gate_runner.py",
+              # auto-correction loop: lint a just-saved .py (PostToolUse) + Korean-typo gate for
+              # .md/.txt (PostToolUse) + gate `git commit` (PreToolUse)
+              "lint_guard.py", "spell_guard.py", "precommit_gate.py"]
 _CLAUDE_PTR = """
 
 ---
@@ -282,8 +285,35 @@ def _merge_settings(harness_dir):
     if not any("sot_init.py" in json.dumps(e) for e in starts):
         starts.append({"matcher": "startup|clear|resume",
                        "hooks": [{"type": "command", "command": _hook_cmd("sot_init.py"), "timeout": 5}]})
+    # Auto-correction loop (gated by a `.lint-guard` toggle in the harness root — off by default):
+    #   lint_guard fires on a just-saved .py (PostToolUse Edit|Write) — auto-fixes the mechanical
+    #   violations, blocks (exit 2) on a remaining semantic one so Claude self-corrects.
+    if not any("lint_guard.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Edit|Write",
+                     "hooks": [{"type": "command", "command": _hook_cmd("lint_guard.py"), "timeout": 15}]})
+    #   spell_guard flags high-confidence Korean typos in a just-saved .md/.txt (blocks, exit 2).
+    if not any("spell_guard.py" in json.dumps(e) for e in post):
+        post.append({"matcher": "Edit|Write",
+                     "hooks": [{"type": "command", "command": _hook_cmd("spell_guard.py"), "timeout": 10}]})
+    #   precommit_gate intercepts `git commit` (PreToolUse Bash) — runs ruff (+ tests if present),
+    #   blocks ('잠깐, 이것부터') so a red tree never reaches history.
+    if not any("precommit_gate.py" in json.dumps(e) for e in pre):
+        pre.append({"matcher": "Bash",
+                    "hooks": [{"type": "command", "command": _hook_cmd("precommit_gate.py"), "timeout": 60}]})
     atomic_write(os.path.join(harness_dir, ".claude", "settings.json"),
                  json.dumps(base, indent=2, ensure_ascii=False) + "\n")
+
+
+def _install_ruff_config(harness_dir, in_project=False):
+    """Transplant a harness-scoped ruff.toml (excludes vendored trees) so the lint loop runs the
+    CYS rule selection. Self-contained: always install. In-project: only when the host lacks one
+    (never clobber a host's own ruff config)."""
+    dst = os.path.join(harness_dir, "ruff.toml")
+    if in_project and os.path.exists(dst):
+        return
+    src = os.path.join(_HERE, "templates", "harness-ruff.toml")
+    if os.path.isfile(src):
+        shutil.copyfile(src, dst)
 
 
 def _verify(harness_dir):
@@ -362,6 +392,8 @@ def inherit(harness_dir, verify_only=False, runtime_manifest=None, in_project=Fa
             src = os.path.join(_HERE, "templates", "hooks", hook)
             if os.path.isfile(src):
                 shutil.copyfile(src, os.path.join(dst_scripts, hook))
+        # 3.5 harness-scoped ruff.toml for the lint loop (host's own config preserved in-project)
+        _install_ruff_config(harness_dir, in_project=in_project)
         # 4. CYS pointer on CLAUDE.md — in-project APPENDS to (and preserves) the HOST's CLAUDE.md (creating
         #    one only if the host has none); self-contained appends to the inherited genome CLAUDE.md. Once.
         cm = os.path.join(harness_dir, "CLAUDE.md")

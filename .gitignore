@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# factory runtime context snapshots (context-preservation hook output — not source)
+.claude/context-snapshots/
+
 # --- emit/inherit GENERATED inside examples (regenerable: python3 emit_workflow.py <ex>) ---
 examples/*/.harness/workflow.js
 examples/*/harness.md

@@ -664,7 +664,8 @@ class TestInProjectInstall(unittest.TestCase):
             self._host(td, g)
             errs = emit_orchestrator.emit_orchestrator(g, td, in_project=True)
             self.assertEqual(errs, [], "genome verify must pass in-project: %s" % errs)
-            rd = lambda *p: open(os.path.join(td, *p), encoding="utf-8").read()
+            def rd(*p):
+                return open(os.path.join(td, *p), encoding="utf-8").read()
             # host root files PRESERVED (not clobbered by the genome)
             self.assertIn("host-specific", rd("CLAUDE.md"))
             self.assertIn("CYS Harness Engine (inherited", rd("CLAUDE.md"), "CYS pointer appended to host CLAUDE.md")
@@ -914,7 +915,8 @@ class TestFactoryPipelineE2E(unittest.TestCase):
         return g
 
     def test_predicates_through_validated_harness(self):
-        import warrant, audit_harness
+        import warrant
+        import audit_harness
         # STAGE PRE: warrant classifies a multi-domain, staged, rerun task as build-harness
         v = warrant.classify({"distinct_expertise_domains": 3, "has_dependent_or_parallel_stages": True,
                               "will_be_rerun": True, "output_objective": True, "noisy": True})
@@ -1235,6 +1237,295 @@ class TestSotPathReconciled(unittest.TestCase):
             os.makedirs(os.path.join(td, ".claude"))
             open(os.path.join(td, ".claude", "state.yaml"), "w").write("workflow:\n  current_step: 9\n")
             self.assertIn("current_step: 9", self._content(cl.capture_sot(td)), "plain-AWF .claude SOT must still resolve")
+
+
+@unittest.skipUnless(__import__("shutil").which("ruff"), "ruff not installed")
+class TestLintGuard(unittest.TestCase):
+    """Phase 1 — lint_guard.py: a PostToolUse(Edit|Write) hook that lints a just-saved .py
+    with ruff, auto-fixes the mechanical violations in place, and turns any *remaining* (semantic)
+    violation into an exit-2 + stderr block — the auto-correction loop. It is a no-op when the
+    `.lint-guard` toggle is absent, when ruff is missing, or for out-of-scope/non-python paths."""
+
+    def _guard(self):
+        return _load_hook("lint_guard")
+
+    def test_flags_semantic_violation(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "bad.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            violations = g.lint_python(p)
+            self.assertTrue(violations, "ruff must surface F821 undefined name")
+            self.assertTrue(any("F821" in v for v in violations), "violation text names the rule")
+
+    def test_clean_file_has_no_violations(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "ok.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return 1\n")
+            self.assertEqual(g.lint_python(p), [])
+
+    def test_autofixes_fixable_in_place(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "fixable.py")
+            open(p, "w", encoding="utf-8").write("import os\n\n\ndef f():\n    return 1\n")
+            self.assertEqual(g.lint_python(p), [], "F401 unused-import is auto-fixed -> no residual")
+            self.assertNotIn("import os", open(p, encoding="utf-8").read(), "unused import removed in place")
+
+    def test_toggle_off_is_noop(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "bad.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "no .lint-guard toggle -> never blocks")
+
+    def test_toggle_on_blocks_violation(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            p = os.path.join(td, "bad.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 2, "active toggle + violation -> exit 2 block")
+
+    def test_out_of_scope_path_skipped(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            os.makedirs(os.path.join(td, "genome"))
+            p = os.path.join(td, "genome", "vendored.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "vendored genome/ path is out of scope")
+
+    def test_non_python_not_blocked_by_code_rules(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            p = os.path.join(td, "notes.md")
+            open(p, "w", encoding="utf-8").write("# hello\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, ".md is not subject to ruff code rules")
+
+    def test_malformed_stdin_is_safe(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            self.assertEqual(g.run("not json at all", project_dir=td), 0, "malformed payload never blocks")
+
+
+@unittest.skipUnless(__import__("shutil").which("ruff"), "ruff not installed")
+class TestPrecommitGate(unittest.TestCase):
+    """Phase 2 — precommit_gate.py: a PreToolUse(Bash) hook that intercepts `git commit` and
+    runs the project gate (ruff over scope, plus the test suite if present). A failing gate
+    becomes exit-2 + stderr ('잠깐, 이것부터') so Claude fixes and re-commits with no human. Any
+    non-commit command, an absent `.lint-guard` toggle, or an internal error passes through (0)."""
+
+    def _gate(self):
+        return _load_hook("precommit_gate")
+
+    def test_detects_git_commit_command(self):
+        g = self._gate()
+        self.assertTrue(g.is_git_commit("git commit -m 'x'"))
+        self.assertTrue(g.is_git_commit("git commit --amend"))
+        self.assertTrue(g.is_git_commit("git add -A && git commit -m y"))
+        self.assertFalse(g.is_git_commit("git status"))
+        self.assertFalse(g.is_git_commit("git log --oneline commit"))
+        self.assertFalse(g.is_git_commit("echo committing"))
+
+    def test_blocks_commit_when_lint_fails(self):
+        g = self._gate()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            open(os.path.join(td, "bad.py"), "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}})
+            self.assertEqual(g.run(payload, project_dir=td), 2, "ruff violation must block the commit")
+
+    def test_allows_commit_when_clean(self):
+        g = self._gate()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            open(os.path.join(td, "ok.py"), "w", encoding="utf-8").write("def f():\n    return 1\n")
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "clean tree commits freely")
+
+    def test_non_commit_command_passes(self):
+        g = self._gate()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            open(os.path.join(td, "bad.py"), "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git status"}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "non-commit command is never gated")
+
+    def test_toggle_off_is_noop(self):
+        g = self._gate()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "bad.py"), "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m x"}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "no .lint-guard toggle -> never blocks")
+
+    def test_malformed_stdin_is_safe(self):
+        g = self._gate()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            self.assertEqual(g.run("not json", project_dir=td), 0, "malformed payload never blocks")
+
+
+class TestLoopInheritance(unittest.TestCase):
+    """Phase 3 — the lint/precommit auto-correction loop is transplanted into every emitted harness
+    (genome inheritance): both hook scripts ship, settings.json wires them to the right events, a
+    harness-scoped ruff.toml lands (excluding vendored trees), and a host's own ruff.toml is preserved."""
+
+    def test_cys_hooks_carry_the_loop(self):
+        import inherit_genome
+        self.assertIn("lint_guard.py", inherit_genome._CYS_HOOKS)
+        self.assertIn("spell_guard.py", inherit_genome._CYS_HOOKS)
+        self.assertIn("precommit_gate.py", inherit_genome._CYS_HOOKS)
+
+    def test_settings_wire_lint_and_precommit(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".claude"))
+            inherit_genome._merge_settings(td)
+            s = json.load(open(os.path.join(td, ".claude", "settings.json"), encoding="utf-8"))
+            post = json.dumps(s["hooks"]["PostToolUse"])
+            pre = json.dumps(s["hooks"]["PreToolUse"])
+            self.assertIn("lint_guard.py", post, "lint_guard wired to PostToolUse")
+            self.assertIn("spell_guard.py", post, "spell_guard wired to PostToolUse")
+            self.assertIn("Edit|Write", post)
+            self.assertIn("precommit_gate.py", pre, "precommit_gate wired to PreToolUse")
+
+    def test_settings_wiring_is_idempotent(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            os.makedirs(os.path.join(td, ".claude"))
+            inherit_genome._merge_settings(td)
+            inherit_genome._merge_settings(td)  # re-emit must not duplicate
+            s = json.load(open(os.path.join(td, ".claude", "settings.json"), encoding="utf-8"))
+            n_lint = sum(1 for e in s["hooks"]["PostToolUse"] if "lint_guard.py" in json.dumps(e))
+            n_pre = sum(1 for e in s["hooks"]["PreToolUse"] if "precommit_gate.py" in json.dumps(e))
+            self.assertEqual(n_lint, 1, "lint_guard wired exactly once across re-emits")
+            self.assertEqual(n_pre, 1, "precommit_gate wired exactly once across re-emits")
+
+    def test_harness_ruff_config_installed_and_excludes_vendored(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            inherit_genome._install_ruff_config(td)
+            cfg = open(os.path.join(td, "ruff.toml"), encoding="utf-8").read()
+            self.assertIn("genome", cfg)
+            self.assertIn(".claude/hooks/scripts", cfg, "vendored hook scripts excluded")
+
+    def test_install_ruff_config_preserves_host(self):
+        import inherit_genome
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, "ruff.toml"), "w", encoding="utf-8").write("# host config\n")
+            inherit_genome._install_ruff_config(td, in_project=True)
+            self.assertEqual(open(os.path.join(td, "ruff.toml"), encoding="utf-8").read(), "# host config\n")
+
+    @unittest.skipUnless(__import__("shutil").which("ruff"), "ruff not installed")
+    def test_vendored_hook_scripts_out_of_scope(self):
+        g = _load_hook("lint_guard")
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            scripts = os.path.join(td, ".claude", "hooks", "scripts")
+            os.makedirs(scripts)
+            p = os.path.join(scripts, "_context_lib.py")
+            open(p, "w", encoding="utf-8").write("def f():\n    return undefined_name\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "vendored .claude/hooks/scripts/ is out of scope")
+
+
+class TestSpellGuard(unittest.TestCase):
+    """Phase 4 — spell_guard.py: a PostToolUse(Edit|Write) hook that flags a small set of
+    HIGH-CONFIDENCE Korean typos (almost-always-wrong forms) in .md/.txt docs and blocks
+    (exit 2) so Claude fixes them. Context-dependent spelling stays the model's job (A1):
+    the dictionary is deliberately conservative to avoid false positives."""
+
+    def _guard(self):
+        return _load_hook("spell_guard")
+
+    def test_flags_known_typo_with_suggestion(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("# 제목\n오케스트레이터의 역활은 조율이다.\n")
+            found = g.spell_check(p)
+            self.assertTrue(found, "must flag '역활'")
+            self.assertTrue(any("역할" in f for f in found), "suggests the correct form '역할'")
+
+    def test_clean_korean_passes(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("# 제목\n오케스트레이터의 역할은 조율이다. 검증이 완료됐다.\n")
+            self.assertEqual(g.spell_check(p), [], "correct Korean has no findings")
+
+    def test_toggle_on_blocks_typo(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("작업이 완료됬다.\n")  # 됬 -> 됐
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 2, "high-confidence typo blocks under toggle")
+
+    def test_toggle_off_is_noop(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("완료됬다.\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "no toggle -> never blocks")
+
+    def test_python_file_not_spell_checked(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            p = os.path.join(td, "code.py")
+            open(p, "w", encoding="utf-8").write("# 역활\nx = 1\n")  # .py is lint_guard's job, not spelling
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "spell layer ignores .py")
+
+    def test_out_of_scope_doc_skipped(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            os.makedirs(os.path.join(td, "genome"))
+            p = os.path.join(td, "genome", "vendored.md")
+            open(p, "w", encoding="utf-8").write("완료됬다.\n")
+            payload = json.dumps({"tool_name": "Write", "tool_input": {"file_path": p}})
+            self.assertEqual(g.run(payload, project_dir=td), 0, "vendored genome docs are out of scope")
+
+    def test_malformed_stdin_is_safe(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            open(os.path.join(td, ".lint-guard"), "w").write("")
+            self.assertEqual(g.run("not json", project_dir=td), 0)
+
+    def test_typo_quoted_in_inline_code_is_ignored(self):
+        # a doc that DISCUSSES a typo wraps it in backticks; that quotation is not an error
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("오타 사전: `됬`→`됐`, `역활`→`역할` 를 잡는다.\n")
+            self.assertEqual(g.spell_check(p), [], "typos quoted in inline code are explanatory, not defects")
+
+    def test_typo_in_fenced_code_block_is_ignored(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("예시:\n```\nTYPOS = {'됬': '됐', '역활': '역할'}\n```\n")
+            self.assertEqual(g.spell_check(p), [], "typos inside a fenced code block are sample code")
+
+    def test_body_typo_still_flagged_alongside_code(self):
+        g = self._guard()
+        with tempfile.TemporaryDirectory() as td:
+            p = os.path.join(td, "doc.md")
+            open(p, "w", encoding="utf-8").write("`코드`는 멀쩡하지만 본문 역활이 틀렸다.\n")
+            found = g.spell_check(p)
+            self.assertTrue(any("역할" in f for f in found), "a real body typo is still caught when code is present")
 
 
 if __name__ == "__main__":
