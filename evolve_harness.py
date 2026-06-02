@@ -15,10 +15,6 @@ import json
 import os
 import sys
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.join(_HERE, "lib"))
-from atomic_write import atomic_write  # noqa: E402
-
 # idoforgod Phase 7-2 feedback-routing table: feedback type -> the artifact to change.
 _ROUTE = {
     "result-quality": "domain-skill-or-agent-body",   # 산출물 품질 → 그 노드의 how(스킬/agent 본문)
@@ -62,8 +58,10 @@ def record(harness_dir, date, feedback_type, change, reason):
     entry = {"date": date, "feedback_type": feedback_type, "target": target, "change": change, "reason": reason}
     p = _log_path(harness_dir)
     os.makedirs(os.path.dirname(p), exist_ok=True)
-    prior = open(p, encoding="utf-8").read() if os.path.isfile(p) else ""
-    atomic_write(p, prior + json.dumps(entry, ensure_ascii=False) + "\n")
+    # true append (O_APPEND): each concurrent record() appends ONE line atomically (POSIX), so a race
+    # can't drop a committed entry the way the old read-prior-then-rewrite-all did (lost update).
+    with open(p, "a", encoding="utf-8") as f:
+        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     return entry
 
 

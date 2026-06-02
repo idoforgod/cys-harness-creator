@@ -56,6 +56,16 @@ _INPROJECT_NONCLOBBER_SUBS = ["agents", "skills", "config"]   # capability+confi
 _MANDATORY_GENOME_AGENTS = ["reviewer.md", "fact-checker.md"]
 # anchored to the genome root (leading /) so only the top-level dirs drop — keeps docs/ + all root .md
 _RELOCATE_EXCLUDES = ["/.claude", "/prompt", "/prompt-runner", "/translations", "__pycache__"]
+
+
+def _count_genome_files(root):
+    """Deterministic count of transplanted genome files for GENOME.json provenance. Excludes
+    __pycache__/*.pyc (which the transplant rsync already excludes via _RELOCATE_EXCLUDES), so a stray
+    compiled file from a prior run can't make the recorded count nondeterministic."""
+    return sum(1 for d, _, fs in os.walk(root) for f in fs
+               if "__pycache__" not in d and not f.endswith(".pyc"))
+
+
 _CYS_LOG_HOOK = "cys_log_tokens.py"
 # CYS-specific hooks installed alongside the AWF genome (templates/hooks -> child scripts dir).
 # M0d adds the three that make DNA FIRE instead of lie dormant: spawn_counter (increments the budget
@@ -456,7 +466,7 @@ def inherit(harness_dir, verify_only=False, runtime_manifest=None, in_project=Fa
                            ".harness/genome/; host root files preserved" if in_project
                            else "full functional machinery, self-contained, verbatim"),
             "genome_docs": ".harness/genome/" if in_project else ".",
-            "genome_file_count": sum(len(fs) for _, _, fs in os.walk(_GENOME)),
+            "genome_file_count": _count_genome_files(_GENOME),
         }, indent=2, ensure_ascii=False) + "\n")
         atomic_write(os.path.join(harness_dir, ".harness", "RUNTIME.json"),
                      json.dumps(runtime_manifest or _RUNTIME_MANIFEST, indent=2, ensure_ascii=False) + "\n")

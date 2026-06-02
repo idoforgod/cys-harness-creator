@@ -60,9 +60,13 @@ def _find_project_dir():
     return os.getcwd()
 
 
-def _out_of_scope(file_path):
+def _out_of_scope(file_path, project_dir=None):
+    # anchor the vendored-tree skip to the PROJECT ROOT (not a substring-anywhere match), so a user's own
+    # src/examples/ is checked while the factory's top-level examples/ / genome/ are still skipped.
     norm = file_path.replace("\\", "/")
-    return any(part in norm for part in SKIP_PARTS)
+    proj = (project_dir or _find_project_dir()).replace("\\", "/").rstrip("/")
+    rel = norm[len(proj) + 1:] if norm.startswith(proj + "/") else norm.lstrip("/")
+    return any(rel == p.strip("/") or rel.startswith(p.strip("/") + "/") for p in SKIP_PARTS)
 
 
 def spell_check(file_path):
@@ -87,7 +91,7 @@ def run(stdin_text, project_dir=None):
         file_path = (payload.get("tool_input") or {}).get("file_path", "")
     except Exception:
         return 0
-    if not file_path or not file_path.endswith(TEXT_EXT) or _out_of_scope(file_path):
+    if not file_path or not file_path.endswith(TEXT_EXT) or _out_of_scope(file_path, project_dir):
         return 0
     typos = spell_check(file_path)
     if typos:

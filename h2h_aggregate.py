@@ -24,6 +24,7 @@ runs.json: {"runs":[{...scorecard...}, ...], "model_id"?, "git_sha"?,
 import argparse
 import json
 import os
+import re
 import sys
 
 SCHEMA_VERSION = "0.1"
@@ -70,11 +71,13 @@ def variance(xs):
 
 
 def _condition_keys(runs):
-    """Discover every 'cN_pass_rate' key present across runs, in stable sorted order."""
+    """Discover every 'cN_pass_rate' condition key present across runs, in stable sorted order. ONLY the
+    cN form counts (per the module contract) — an aggregate/typo key like 'overall_pass_rate' must not
+    leak in as a phantom 'OVERALL' condition."""
     keys = set()
     for r in runs:
         for k in r:
-            if k.endswith("_pass_rate"):
+            if re.match(r"^c\d+_pass_rate$", str(k)):
                 keys.add(k)
     return sorted(keys)
 

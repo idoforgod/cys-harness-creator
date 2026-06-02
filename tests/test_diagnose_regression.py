@@ -313,5 +313,128 @@ class TestEmitPathSafety(unittest.TestCase):
         emit_orchestrator._require_valid_graph(self._graph("gather", "researcher"))  # no raise
 
 
+# ---------------------------------------------------------------------------------------------------
+# C-group (minor / robustness) regressions
+# ---------------------------------------------------------------------------------------------------
+
+class TestQueryNormNonLatin(unittest.TestCase):
+    """A-F5 — a non-Latin (e.g. Korean) recall key must not normalize to '' (an empty grep matches
+    EVERY run, defeating the recall conduit). Must stay deterministic + idempotent."""
+
+    def setUp(self):
+        import query_norm
+        self.qn = query_norm.query_norm
+
+    def test_non_latin_is_nonempty(self):
+        self.assertTrue(self.qn("경쟁사-감시"), "Korean-only name must not normalize to empty")
+
+    def test_non_latin_idempotent(self):
+        once = self.qn("경쟁사-감시")
+        self.assertEqual(self.qn(once), once, "query_norm(query_norm(x)) == query_norm(x)")
+
+    def test_non_latin_deterministic(self):
+        self.assertEqual(self.qn("경쟁사-감시"), self.qn("경쟁사-감시"))
+
+    def test_latin_unchanged(self):
+        self.assertEqual(self.qn("deep-research"), "deep research")
+        self.assertEqual(self.qn("Competitor_Watch!"), "competitor watch")
+
+
+class TestTierOverrideReasonNonBlank(unittest.TestCase):
+    """B-F5 — a blank/whitespace tier_override_reason must NOT downgrade TIER_OVERSPEND error->warn."""
+
+    def _tier_level(self, reason):
+        g = {"schema_version": "0.1", "harness_name": "ov-demo", "harness_version": "0.1.0",
+             "execution_mode": "agent", "topology": "pipeline",
+             "budget": {"total_tokens": 100, "approval_required": True},
+             "nodes": [{"id": "gather", "agent": "fetcher", "model": "opus",
+                        "decision_mechanism": "single", "mechanism_params": {}, "inputs": [],
+                        "outputs": ["_workspace/g.json"], "write_paths": ["_workspace/g/"],
+                        "output_schema": "schemas/g.json", "tier_override_reason": reason,
+                        "retries": 0, "on_exhaust": "proceed-with-gap", "max_rounds": 1}],
+             "edges": []}
+        td = tempfile.mkdtemp(prefix="chc-ov-")
+        os.makedirs(os.path.join(td, ".harness"))
+        json.dump(g, open(os.path.join(td, ".harness", "graph.json"), "w", encoding="utf-8"))
+        r = validate_harness.validate(td)
+        shutil.rmtree(td)
+        return next((i["level"] for i in r.items if i["code"] == "TIER_OVERSPEND"), None)
+
+    def test_blank_reason_is_error(self):
+        self.assertEqual(self._tier_level(" "), "error")
+
+    def test_real_reason_is_warn(self):
+        self.assertEqual(self._tier_level("측정 근거 있음"), "warn")
+
+
+class TestLintSpellScopeAnchored(unittest.TestCase):
+    """C-F6 — vendored-tree skip must be anchored to the project root, so a user's own src/examples/
+    is checked (not skipped by a substring match on '/examples/')."""
+
+    def setUp(self):
+        self.lg = _load_hook("lint_guard")
+        self.sg = _load_hook("spell_guard")
+
+    def test_user_examples_not_skipped(self):
+        self.assertFalse(self.lg._out_of_scope("/proj/src/examples/bar.py", "/proj"))
+        self.assertFalse(self.sg._out_of_scope("/proj/src/examples/bar.md", "/proj"))
+
+    def test_vendored_trees_still_skipped(self):
+        self.assertTrue(self.lg._out_of_scope("/proj/genome/x.py", "/proj"))
+        self.assertTrue(self.lg._out_of_scope("/proj/examples/dr/x.py", "/proj"))
+        self.assertTrue(self.sg._out_of_scope("/proj/.harness/genome/y.md", "/proj"))
+
+
+class TestChangeHistoryConcurrentAppend(unittest.TestCase):
+    """D-F2 — change-history is append-only; concurrent record() calls must not lose entries
+    (the old read-modify-rewrite dropped commits under a race)."""
+
+    def test_concurrent_records_all_survive(self):
+        import threading
+        import evolve_harness as ev
+        td = tempfile.mkdtemp(prefix="chc-hist-")
+        os.makedirs(os.path.join(td, ".harness"))
+        K = 24
+        barrier = threading.Barrier(K)
+
+        def worker(i):
+            barrier.wait()  # maximize the race window
+            ev.record(td, "2026-06-02", "result-quality", "change-%d" % i, "r")
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(K)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(len(ev.read_history(td)), K, "every concurrent record must survive (append-only)")
+        shutil.rmtree(td)
+
+
+class TestConditionKeysCNOnly(unittest.TestCase):
+    """D-F7 — only cN_pass_rate keys are conditions; 'overall_pass_rate' must not leak in as 'OVERALL'."""
+
+    def test_overall_not_absorbed(self):
+        keys = h2h_aggregate._condition_keys(
+            [{"c2_pass_rate": 0.5, "c3_pass_rate": 0.5, "overall_pass_rate": 0.5}])
+        self.assertEqual(keys, ["c2_pass_rate", "c3_pass_rate"])
+
+
+class TestGenomeFileCountExcludesPyc(unittest.TestCase):
+    """D-F8 — the provenance genome_file_count must be deterministic: exclude __pycache__/*.pyc
+    (which the transplant rsync already excludes), so a stray .pyc can't change the count."""
+
+    def setUp(self):
+        import inherit_genome
+        self.ig = inherit_genome
+
+    def test_count_excludes_pyc(self):
+        td = tempfile.mkdtemp(prefix="chc-gc-")
+        open(os.path.join(td, "real.py"), "w").write("x")
+        open(os.path.join(td, "doc.md"), "w").write("y")
+        os.makedirs(os.path.join(td, "__pycache__"))
+        open(os.path.join(td, "__pycache__", "real.cpython-314.pyc"), "wb").write(b"\x00")
+        self.assertEqual(self.ig._count_genome_files(td), 2, "must count real.py + doc.md, not the .pyc")
+        shutil.rmtree(td)
+
+
 if __name__ == "__main__":
     unittest.main()

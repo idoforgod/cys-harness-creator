@@ -318,7 +318,7 @@ def validate(harness_dir):
                   % (nid, TIER_BY_ROLE_CLASS[_role_class_of(n)]), nid)
         # V2 opus on pure-retrieval
         if n.get("model") == "opus" and _role_class_of(n) in PURE_RETRIEVAL:
-            lvl = "warn" if n.get("tier_override_reason") else "error"
+            lvl = "warn" if (n.get("tier_override_reason") or "").strip() else "error"
             r.add("TIER_OVERSPEND", lvl, "node '%s' role-class %s (pure retrieval) is opus"
                   % (nid, _role_class_of(n)), nid)
         # SCHEMA_FILE_EXISTS

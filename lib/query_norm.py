@@ -10,6 +10,7 @@ literal into the orchestrator prose (like sot_init.estimate_max_spawns), so the 
 Pure, no clock/RNG, resume-safe. Imported by bootstrap_factory_memory (write side) and emit_orchestrator
 (bakes the literal grep token + query_norm into the produced orchestrator).
 """
+import hashlib
 import re
 
 
@@ -17,8 +18,15 @@ def query_norm(text):
     """Canonical recall key: lowercase, non-alphanumeric -> space, collapse. Deterministic + idempotent
     (query_norm(query_norm(x)) == query_norm(x)). 'deep-research' -> 'deep research'; 'Competitor_Watch!'
     -> 'competitor watch'. Substring-grep-safe: the same input always yields the same token string, so a
-    reader grepping query_norm(name) hits a writer that stored query_norm(name)."""
-    return " ".join(re.findall(r"[a-z0-9]+", str(text).lower()))
+    reader grepping query_norm(name) hits a writer that stored query_norm(name).
+
+    Non-Latin input (e.g. a Korean name) has NO [a-z0-9] tokens — returning '' would make the Phase-0
+    `Grep` match EVERY run (empty pattern), defeating recall. So fall back to a stable hex digest: still
+    deterministic, idempotent (the digest is itself [a-z0-9] -> normalizes to itself), and grep-safe."""
+    norm = " ".join(re.findall(r"[a-z0-9]+", str(text).lower()))
+    if norm:
+        return norm
+    return "h" + hashlib.sha1(str(text).strip().lower().encode("utf-8")).hexdigest()[:12]
 
 
 if __name__ == "__main__":
