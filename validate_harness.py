@@ -30,9 +30,9 @@ _RC_FALLBACK = {
     },
     "pure_retrieval_role_classes": ["gather", "extract", "format", "qa-scan"],
     "base_role_class_patterns": [
-        ["gather|fetch|search|retriev|collect|scan-src", "gather"],
+        ["gather|fetch|\\bsearch|retriev|collect|scan-src", "gather"],
         ["extract|parse|pull", "extract"],
-        ["format|render|serialize|report|writer|publish", "format"],
+        ["format|render|serialize|writer|publish", "format"],
         ["qa|lint|check|verify|valid", "qa-scan"],
         ["synth|aggregate|merge|conclude", "synthesis"],
         ["judge|arbiter", "judge"], ["critic|review", "critic"],
@@ -79,7 +79,7 @@ def _role_class_of(node):
 
 def _load_const(key, default):
     try:
-        with open(os.path.join(HERE, "constants.json")) as f:
+        with open(os.path.join(HERE, "constants.json"), encoding="utf-8") as f:
             return json.load(f).get(key, default)
     except (OSError, ValueError):
         return default
@@ -89,7 +89,7 @@ def _parse_frontmatter(md_path):
     """Minimal YAML frontmatter line-scan: returns dict of top-level scalar keys."""
     fm = {}
     try:
-        with open(md_path) as f:
+        with open(md_path, encoding="utf-8") as f:
             text = f.read()
     except OSError:
         return None
@@ -143,7 +143,7 @@ def validate(harness_dir):
     _relocated = os.path.isfile(os.path.join(harness_dir, ".harness", "genome", "CLAUDE.md"))
     if os.path.isfile(gj):
         try:
-            mode = json.load(open(gj)).get("install_mode")
+            mode = json.load(open(gj, encoding="utf-8")).get("install_mode")
             # corrupt or keyless GENOME.json must NOT silently fall back to self-contained checks against an
             # in-project layout — detect in-project structurally (relocated constitution) before defaulting.
             in_project = (mode == "in-project") or (mode is None and _relocated)
@@ -153,7 +153,7 @@ def validate(harness_dir):
     # GRAPH_SCHEMA
     try:
         import jsonschema
-        schema = json.load(open(os.path.join(HERE, "graph.schema.json")))
+        schema = json.load(open(os.path.join(HERE, "graph.schema.json"), encoding="utf-8"))
         try:
             jsonschema.validate(graph, schema)
         except jsonschema.ValidationError as e:
@@ -186,7 +186,12 @@ def validate(harness_dir):
         if not isinstance(e, dict) or e.get("from") not in node_ids or e.get("to") not in node_ids:
             r.err("EDGE_INTEGRITY", "edge references unknown/missing node: %s->%s"
                   % (e.get("from") if isinstance(e, dict) else e, e.get("to") if isinstance(e, dict) else "?"))
-    if graph.get("topology") in ("pipeline", "dispatch"):
+    # GRAPH_CYCLE: emit toposorts the graph for EVERY topology (emit_orchestrator), so any cycle it can't
+    # schedule must be caught HERE, before emit — for all topologies EXCEPT producer-reviewer, whose
+    # reviewer->producer back-edge is intentional (qa-guide §6-2: the loop is driven by topology semantics
+    # + max_rounds, not a schedulable edge). Previously only pipeline/dispatch were checked, so an accidental
+    # cycle in hierarchical/supervisor/expert-pool/fan-out-fan-in passed the gate then failed at emit.
+    if graph.get("topology") != "producer-reviewer":
         try:
             toposort(nodes, graph.get("edges", []))
         except CycleError as ce:
@@ -323,7 +328,7 @@ def validate(harness_dir):
                 r.err("SCHEMA_FILE_EXISTS", "node '%s' output_schema missing: %s" % (nid, n["output_schema"]), nid)
             else:
                 try:
-                    s = json.load(open(sp))
+                    s = json.load(open(sp, encoding="utf-8"))
                     if "type" not in s:
                         r.err("SCHEMA_FILE_EXISTS", "schema %s has no top-level 'type'" % n["output_schema"], nid)
                 except ValueError:
@@ -450,14 +455,20 @@ def _measurement_drift(harness_dir, r, in_project=False):
     if not os.path.isdir(edir):
         return
     verdicts = set()
+    saw_file = False
+    unreadable = 0
     for fn in os.listdir(edir):
         if fn.endswith(".verdict.json"):
+            saw_file = True
             try:
-                verdicts.add(json.load(open(os.path.join(edir, fn))).get("verdict"))
+                verdicts.add(json.load(open(os.path.join(edir, fn), encoding="utf-8")).get("verdict"))
             except (OSError, ValueError):
-                pass
-    if not verdicts or "CYS-WINS" in verdicts:
-        return  # no verdicts, or it genuinely wins -> win claims are allowed
+                unreadable += 1   # a present-but-unreadable verdict is NOT 'unmeasured' — don't let it pass a win claim
+    if "CYS-WINS" in verdicts:
+        return  # a genuine CYS-WINS verdict -> win claims are allowed
+    if not saw_file:
+        return  # no verdict files at all -> honestly unmeasured, nothing to police
+    # verdict files exist but none shows CYS-WINS (includes the all-corrupt case) -> a win claim is unsupported
     # in-project: the harness readme is .harness/README.md; the host's root README is NOT a harness claim surface
     readme = os.path.join(harness_dir, ".harness", "README.md") if in_project \
         else os.path.join(harness_dir, "README.md")
@@ -468,10 +479,11 @@ def _measurement_drift(harness_dir, r, in_project=False):
             cand = os.path.join(d.path, "SKILL.md")
             if d.is_dir() and os.path.isfile(cand):
                 docs.append(cand)
+    _corrupt = " (%d verdict file(s) unreadable)" % unreadable if unreadable else ""
     for d in docs:
         if os.path.isfile(d) and "CYS-WINS" in open(d, encoding="utf-8").read():
-            r.err("MEASUREMENT_DRIFT", "doc advertises CYS-WINS but no evals/*.verdict.json shows it (%s)"
-                  % os.path.basename(d), d)
+            r.err("MEASUREMENT_DRIFT", "doc advertises CYS-WINS but no evals/*.verdict.json shows it%s (%s)"
+                  % (_corrupt, os.path.basename(d)), d)
 
 
 def _genome_checks(harness_dir, r, graph=None, in_project=False):
@@ -548,7 +560,7 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
         r.err("RUNTIME_DECLARED", "no .harness/RUNTIME.json — two-runtime ambiguity unresolved (run inherit_genome)", rp)
     else:
         try:
-            rt = json.load(open(rp))
+            rt = json.load(open(rp, encoding="utf-8"))
             if rt.get("canonical_runtime") != expected_canonical:
                 r.err("RUNTIME_DECLARED", "RUNTIME.json canonical_runtime='%s' but execution_mode='%s' expects '%s'"
                       % (rt.get("canonical_runtime"), mode, expected_canonical), rp)
@@ -576,7 +588,7 @@ def _genome_checks(harness_dir, r, graph=None, in_project=False):
         needed_hooks += ["budget_block.py", "spawn_counter.py", "sot_init.py", "qa_gate_runner.py"]
     if os.path.isfile(sp):
         try:
-            cmds = json.dumps(json.load(open(sp)).get("hooks", {}))
+            cmds = json.dumps(json.load(open(sp, encoding="utf-8")).get("hooks", {}))
             for needed in needed_hooks:
                 if needed not in cmds:
                     r.err("HOOK_REGISTERED", "settings.json does not wire %s" % needed, sp)
@@ -713,8 +725,8 @@ def _doc_drift(harness_dir, r, in_project=False):
                     break
     if not (os.path.isfile(readme) and skill_md):
         return  # no domain orchestrator skill -> nothing to drift-check
-    rc = _count_phases(open(readme).read())
-    sc = _count_phases(open(skill_md).read())
+    rc = _count_phases(open(readme, encoding="utf-8").read())
+    sc = _count_phases(open(skill_md, encoding="utf-8").read())
     if rc is not None and sc is not None and rc != sc:
         r.err("DOC_DRIFT", "README phase-count (%d) != SKILL phase-count (%d)" % (rc, sc), readme)
 

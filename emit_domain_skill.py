@@ -79,7 +79,7 @@ def main():
     if len(sys.argv) < 2:
         print("usage: emit_domain_skill.py <harness_dir>", file=sys.stderr); sys.exit(2)
     hd = os.path.abspath(sys.argv[1])
-    graph = json.load(open(os.path.join(hd, ".harness", "graph.json")))
+    graph = json.load(open(os.path.join(hd, ".harness", "graph.json"), encoding="utf-8"))
     w = emit_domain_skills(graph, hd)
     print("emitted %d domain skill(s): %s" % (len(w), ", ".join(w) or "(none — all inline)"))
 

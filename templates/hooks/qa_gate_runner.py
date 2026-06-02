@@ -22,6 +22,7 @@ Advisory-safe everywhere: missing SOT / gate_or_block / validators / output path
 
 Exit: 0 allow, 2 BLOCK (first failing layer). Selftest: qa_gate_runner.py --selftest
 """
+import json
 import os
 import re
 import subprocess
@@ -51,10 +52,28 @@ def read_outputs(state_path):
         return out
 
 
-def next_step_to_gate(recorded_steps, last_gated):
-    """The lowest recorded step strictly greater than last_gated (gate in order, one per fire)."""
-    pending = sorted(s for s in recorded_steps if s > last_gated)
+def next_step_to_gate(recorded_steps, gated):
+    """The lowest recorded step not yet gated (gate one per fire). `gated` is the SET of already-gated
+    steps — using a set (not a high-water int) means a step RECORDED OUT OF ORDER (e.g. step-3 lands
+    before step-2 under fan-out) is still gated later, never permanently skipped by an `s > last_gated`
+    filter."""
+    pending = sorted(s for s in recorded_steps if s not in gated)
     return pending[0] if pending else None
+
+
+def _read_gated(sidecar):
+    """Set of already-gated step numbers from `.qa_last_gated`. New format: a JSON list of ints. Back-
+    compat: a bare int N (the former high-water 'last_gated') means steps 1..N were gated in order."""
+    try:
+        raw = json.loads(open(sidecar, encoding="utf-8").read().strip())
+    except (OSError, ValueError):
+        return set()
+    if isinstance(raw, list):
+        return set(int(x) for x in raw)
+    try:
+        return set(range(1, int(raw) + 1))
+    except (TypeError, ValueError):
+        return set()
 
 
 def l0_block(step, outputs, proj, min_size=MIN_OUTPUT_SIZE):
@@ -93,11 +112,8 @@ def run():
     if not outputs:
         return 0
     sidecar = os.path.join(proj, ".harness", ".qa_last_gated")
-    try:
-        last_gated = int(open(sidecar).read().strip())
-    except (OSError, ValueError):
-        last_gated = -1
-    step = next_step_to_gate(set(outputs), last_gated)
+    gated = _read_gated(sidecar)
+    step = next_step_to_gate(set(outputs), gated)
     if step is None:
         return 0
     # L0 in-hook (no validate_pacs coupling)
@@ -124,9 +140,10 @@ def run():
             if proc.returncode == 2:
                 sys.stderr.write("QA GATE %s BLOCK at step %d:\n%s\n" % (layer, step, (proc.stderr or "").strip()[:2000]))
                 return 2
+    gated.add(step)
     try:
-        with open(sidecar, "w") as f:
-            f.write(str(step))
+        with open(sidecar, "w", encoding="utf-8") as f:
+            f.write(json.dumps(sorted(gated)))
     except OSError:
         pass
     return 0
@@ -136,11 +153,12 @@ def _selftest():
     import tempfile
     failed = 0
     seq = [
-        (({1, 2, 3}, -1), 1, "first ungated"),
-        (({1, 2, 3}, 1), 2, "after gating 1"),
-        (({1, 2, 3}, 3), None, "all gated"),
-        ((set(), -1), None, "nothing recorded"),
-        (({2, 5}, 2), 5, "skip already-gated"),
+        (({1, 2, 3}, set()), 1, "first ungated"),
+        (({1, 2, 3}, {1}), 2, "after gating 1"),
+        (({1, 2, 3}, {1, 2, 3}), None, "all gated"),
+        ((set(), set()), None, "nothing recorded"),
+        (({2, 5}, {2}), 5, "skip already-gated"),
+        (({1, 2, 3}, {3}), 1, "out-of-order -> gate lowest ungated"),
     ]
     for (rec, lg), want, desc in seq:
         got = next_step_to_gate(rec, lg)

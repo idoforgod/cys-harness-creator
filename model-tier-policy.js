@@ -37,9 +37,9 @@ function loadRoleClassPolicy() {
     },
     pure_retrieval_role_classes: ["gather", "extract", "format", "qa-scan"],
     base_role_class_patterns: [
-      ["gather|fetch|search|retriev|collect|scan-src", "gather"],
+      ["gather|fetch|\\bsearch|retriev|collect|scan-src", "gather"],
       ["extract|parse|pull", "extract"],
-      ["format|render|serialize|report|writer|publish", "format"],
+      ["format|render|serialize|writer|publish", "format"],
       ["qa|lint|check|verify|valid", "qa-scan"],
       ["synth|aggregate|merge|conclude", "synthesis"],
       ["judge|arbiter", "judge"], ["critic|review", "critic"],

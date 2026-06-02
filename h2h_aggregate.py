@@ -101,22 +101,25 @@ def aggregate(runs, *, model_id, git_sha, harness_version,
     runs = valid
 
     conditions = {}
+    raw_median = {}
     for key in _condition_keys(runs):
         vals = [float(r[key]) for r in runs if key in r]
         cond = key[: -len("_pass_rate")].upper()  # c2_pass_rate -> C2
+        raw_median[cond] = median(vals)            # unrounded — the verdict is computed from THIS
         conditions[cond] = {
-            "median": round(median(vals), 4),
+            "median": round(raw_median[cond], 4),  # 4dp is display-only, never the verdict input
             "variance": round(variance(vals), 6),
             "n": len(vals),
             "runs": vals,
         }
 
-    c2_med = conditions["C2"]["median"]
-    c3_med = conditions["C3"]["median"]
-    delta_pp = round((c2_med - c3_med) * 100.0, 2)  # medians are fractions -> pp
-    if delta_pp >= margin_pp:
+    # Compare the RAW median delta against the margin (NOT a 4dp-then-2dp double-rounded value), so a
+    # true 14.995pp can never cross the 15pp line via median 0.64995 -> 0.65. delta_pp is display-only.
+    raw_delta_pp = (raw_median["C2"] - raw_median["C3"]) * 100.0  # medians are fractions -> pp
+    delta_pp = round(raw_delta_pp, 2)
+    if raw_delta_pp >= margin_pp:
         verdict = "CYS-WINS"
-    elif delta_pp <= -margin_pp:
+    elif raw_delta_pp <= -margin_pp:
         verdict = "BASELINE-WINS"
     else:
         verdict = "INCONCLUSIVE"

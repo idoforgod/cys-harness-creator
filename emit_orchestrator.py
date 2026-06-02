@@ -55,7 +55,7 @@ _ROLE_TOOLS = {
 
 
 def _load(path):
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -189,8 +189,12 @@ def _write_agent_files(graph, harness_dir, in_project=False):
             _rat = ("role-class '%s' policy-default %s; set to %s%s" % (
                 rc, _policy_tier, n["model"],
                 (" (override: %s)" % n["tier_override_reason"]) if n.get("tier_override_reason") else ""))
-        rationale = existing_fm.get("model_rationale") or _rat
-        tools = existing_fm.get("tools") or _tools_for(n)
+        # model_rationale + tools are policy-derived, runtime-bound fields — ALWAYS re-derive from the
+        # graph (never preserve a stale value). Otherwise a re-emit after a model/tools change leaves a
+        # self-contradictory rationale (e.g. model:opus + "cheapest tier") or a stale, over-broad tool
+        # allowlist (a least-privilege regression). Only the hand-written body + description are preserved.
+        rationale = _rat
+        tools = _tools_for(n)
         maxturns = existing_fm.get("maxTurns") or str(_DEFAULT_MAXTURNS)
         if not body.strip():
             body = _agent_body(graph, n)
@@ -561,6 +565,15 @@ def _require_valid_graph(graph):
         if bad:
             raise SystemExit("emit: node[%d] (id=%s) missing required key(s): %s"
                              % (i, n.get("id", "?"), ", ".join(bad)))
+        # emit writes <agent>.md and .claude/skills/<harness>-<id>/ — id/agent must be path-safe basenames
+        # so a hand-authored graph can't make emit write OUTSIDE the harness dir (emit precedes validate,
+        # which enforces the full ^[a-z...]$ pattern; here we block only path traversal).
+        for fld in ("id", "agent"):
+            v = str(n[fld])
+            if not v.strip() or v in (".", "..") or os.path.isabs(v) or v != os.path.basename(v):
+                raise SystemExit("emit: node[%d].%s = %r is not a path-safe name (no '/', '..', absolute "
+                                 "paths) — fix graph.json; validate_harness.py enforces the ^[a-z...]$ pattern"
+                                 % (i, fld, v))
     # edges are dereferenced by toposort (e["from"]/e["to"]) and _team_recipe — a malformed edge dict
     # must fail cleanly here, not crash toposort with a raw KeyError.
     for i, e in enumerate(graph.get("edges") or []):
