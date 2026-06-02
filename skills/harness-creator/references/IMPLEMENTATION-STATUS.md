@@ -21,6 +21,19 @@
 - 신규 validate 코드(총): `PROMPT_RUNNER_ABSENT`·`GRAPH_SCHEMA_DEGRADED`·`PRODUCER_REVIEWER_REVIEW`·`BUILD_GATES_SKIPPED`·`TOPOLOGY_STRUCTURE`·`GRAPH_PROVENANCE`·`QA_TOKEN_TRAP`. **76 factory tests.**
 - **의도적 미구현(결함 아님, 정직 기록)**: (D) i18n — 팩토리 문서 KO 전용은 scope 선택; 산출 하네스는 게놈 `@translator`+glossary로 번역 *가능*. (E) 8 use case **run-level** — 강제 대상은 build-level conformance, run-level은 별도 quota-gated h2h 레인(deep-research n=5 +12.5pp INCONCLUSIVE만 verdict 아티팩트로 stamp; verification-heavy 레인은 rate-limit으로 미stamp). (F) RLM Tier-II recall/record가 prose인 것은 **A1 준수**(회상·판단은 프리미티브/agent의 도메인 작업; Python으로 코드백업하면 A1 위반 — 시드·인덱스·파싱만 코드). 예제 deep-research를 실제 fan-out으로 전환은 별도 enhancement. audit 전체: workflow output wkm8lt82v.
 
+## 🔍 잠복 결함 전수 감사 (2026-06-02, /diagnose) — 16 수정 + 알려진 결함
+green 상태(`test_factory.py` 134 green·4 예제 validate 0/0)에서 **그 신호가 못 잡는** 잠복 결함을 5-에이전트 병렬 감사 + verify-before-assert(직접 재현)로 확정·수정. TDD(전부 수정 전 실패 확인), 회귀 `tests/test_diagnose_regression.py` **40개**(`test_factory.py` 134는 불변 — `make test` 합계 174). 커밋 `40f16de`(A·B 10) + `9bfbd69`(C 6).
+
+- **A(확정 6)**: role-class 부분문자열/순서 오분류(`search`→`\bsearch`로 'research' 오매치 제거 + format 패턴 모호어 `report` 제거; JSON SoT + Python/JS fallback 3미러 동기) · `MEASUREMENT_DRIFT` 손상-verdict 흡수 차단("파일 없음"=정직한 미측정 vs "전부 손상" 구분) · 재emit이 `model_rationale`·`tools`를 stale 보존(자기모순·최소권한 회귀)→항상 graph에서 재유도 · 비-UTF8 로케일 크래시→text-mode `open()` 11곳 `encoding="utf-8"` · h2h verdict 이중 반올림→raw median delta 판정.
+- **B(코드명백 4)**: `GRAPH_CYCLE`가 pipeline/dispatch만 검사→`producer-reviewer` 외 전 토폴로지(emit 무조건 toposort와 정합) · `spawn_counter`가 `TeamCreate`(멤버 N)를 +1만 증분→members 수만큼(advisory-safe) · `qa_gate_runner` high-water int→gated 집합(비순차 기록 스텝 누락 방지, 구 포맷 하위호환) · emit가 id/agent를 경로검사 없이 사용(emit이 validate보다 선행)→`_require_valid_graph`에 path-safe basename 검사.
+- **C(minor/robustness 6)**: `query_norm` 비-Latin 빈 키→안정 hex digest fallback · `tier_override_reason` 공백으로 `TIER_OVERSPEND` 강등→`.strip()` 비어있지 않을 때만 · lint/spell `SKIP_PARTS` substring-anywhere→프로젝트 루트 anchored(사용자 `src/examples/` false-SKIP 해소) · `change-history`가 read-modify-rewrite→진짜 append(동시 lost-update 차단) · `_condition_keys`가 `overall_pass_rate` 흡수→`^c\d+_pass_rate$` 제한 · `genome_file_count`가 `__pycache__` 포함→`_count_genome_files` 헬퍼로 제외(결정론).
+
+**알려진 결함 (미수정 — 정직한 disposition; 수정이 AC-3상 부적절하거나 비활성)**:
+- **by-design(결함 아님)**: (B-F6) pure-retrieval 노드 + 비-single mechanism이 voter/debater/reviser(sonnet)로 분류 — mechanism이 추가 추론을 함의하므로 타당. (D-F4) `evolve_harness`가 graph·validate를 안 건드림 — 진화는 라우팅 로거이고 validate 재통과는 오케스트레이터가 Implementation 재진입으로 강제(워크플로 계약).
+- **mitigated/protected**: (C-F1) `spawn_counter` bump이 첫 `spawns_used:` 매칭 — `sot_init` 시드가 `budget`을 `audit_log`보다 앞에 두어 보호(방어적 hardening 여지만). (C-F7) `precommit_gate`의 `ruff check .` — `inherit_genome`이 vendored 제외 `harness-ruff.toml`을 설치해 완화; in-project + host 자체 ruff.toml(제외 누락) 엣지만 잔존.
+- **dormant**: (C-F4/C-F5) PyYAML 부재 시 `qa_gate_runner`/`budget_block` regex fallback이 블록 밖 토큰 매칭 — 게놈이 PyYAML 동봉이라 비활성. 향후 PyYAML 제거 시 재평가.
+- **저영향**: (D-F3) `read_history`가 손상 줄 silent skip — D-F2(append) 수정으로 손상 가능성 감소. (D-F5/D-F6) `emit_workflow` substring invariant 크래시 / 누락 키 KeyError — `emit_workflow`는 **공장 내부 측정 전용**(제품 emit 은퇴, README A1).
+
 ## ✅ 구현·검증 완료 (M0–M8)
 
 ### M0 — 프리미티브-위임 모순 봉쇄 (절대규칙)
